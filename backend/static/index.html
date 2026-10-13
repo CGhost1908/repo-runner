@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repo Runner</title>
+  <link rel="stylesheet" href="/ui/style.css">
+</head>
+<body class="app-body">
+  <div class="app-layout">
+    <header class="app-header">
+      <div class="header-branding">
+        <h1 class="header-title">
+          <span class="header-icon">🚀</span> Repo Runner
+        </h1>
+        <p class="header-subtitle">Otonom Repo Analiz ve Çalıştırma Motoru</p>
+      </div>
+      <div id="statusBadge" class="status-badge status-ready">
+        Hazır
+      </div>
+    </header>
+
+    <!-- Run Controls Panel -->
+    <section class="controls-panel">
+      <div class="controls-grid">
+        <div class="form-group repo-group">
+          <label class="form-label" for="repoInput">Git Repo Linki veya Yerel Dizin</label>
+          <input id="repoInput" type="text" placeholder="https://github.com/kullanici/repo.git veya C:/projeler/app" class="form-input">
+        </div>
+        <div class="form-group port-group">
+          <label class="form-label" for="portInput">Hedef Port</label>
+          <input id="portInput" type="number" value="8000" class="form-input">
+        </div>
+      </div>
+      <div class="button-group">
+        <button id="runBtn" class="btn btn-primary">
+          ▶ Projeyi Analiz Et ve Çalıştır
+        </button>
+        <button id="stopBtn" class="btn btn-danger hidden">
+          ⏹ Durdur
+        </button>
+      </div>
+    </section>
+
+    <!-- Live Grid (Terminal Logs & Preview Window) -->
+    <main class="dashboard-grid">
+      <!-- Terminal Console Panel -->
+      <section class="panel terminal-panel">
+        <div class="panel-header">
+          <span class="panel-title">Canlı Terminal Logları</span>
+          <button id="clearLogBtn" class="btn-link">Temizle</button>
+        </div>
+        <div id="terminalLog" class="terminal-body">
+          <div class="log-placeholder">// Beklemede. Başlatmak için yukarıdaki formu kullanın.</div>
+        </div>
+      </section>
+
+      <!-- Preview Window Panel -->
+      <section class="panel preview-panel">
+        <div class="panel-header">
+          <span class="panel-title">Önizleme Ekranı</span>
+          <a id="openBrowserLink" href="#" target="_blank" class="btn-link preview-link hidden">Tarayıcıda Aç ↗</a>
+        </div>
+        <div id="previewContainer" class="preview-body">
+          <p class="preview-placeholder">Uygulama çalıştığında web görüntüsü burada belirecektir.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/ui/app.js"></script>
+</body>
+</html>
