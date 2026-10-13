@@ -3,70 +3,484 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Repo Runner</title>
+  <title>Repo Runner | Otonom Yazılım Dağıtım Platformu</title>
   <link rel="stylesheet" href="/ui/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="app-body">
-  <div class="app-layout">
-    <header class="app-header">
-      <div class="header-branding">
-        <h1 class="header-title">
-          <span class="header-icon">🚀</span> Repo Runner
-        </h1>
-        <p class="header-subtitle">Otonom Repo Analiz ve Çalıştırma Motoru</p>
+  <div class="app-shell">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <span class="brand-title">Repo Runner</span>
+          <span class="brand-badge">Bitirme Projesi</span>
+        </div>
       </div>
-      <div id="statusBadge" class="status-badge status-ready">
-        Hazır
-      </div>
-    </header>
 
-    <!-- Run Controls Panel -->
-    <section class="controls-panel">
-      <div class="controls-grid">
-        <div class="form-group repo-group">
-          <label class="form-label" for="repoInput">Git Repo Linki veya Yerel Dizin</label>
-          <input id="repoInput" type="text" placeholder="https://github.com/kullanici/repo.git veya C:/projeler/app" class="form-input">
-        </div>
-        <div class="form-group port-group">
-          <label class="form-label" for="portInput">Hedef Port</label>
-          <input id="portInput" type="number" value="8000" class="form-input">
-        </div>
-      </div>
-      <div class="button-group">
-        <button id="runBtn" class="btn btn-primary">
-          ▶ Projeyi Analiz Et ve Çalıştır
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-page="home">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span class="nav-label">Ana Sayfa</span>
         </button>
-        <button id="stopBtn" class="btn btn-danger hidden">
-          ⏹ Durdur
+
+        <button class="nav-item" data-page="runner">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span class="nav-label">Repo Çalıştırıcı</span>
+          <span id="navLiveIndicator" class="nav-pill hidden">Canlı</span>
         </button>
+
+        <button class="nav-item" data-page="projects">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span class="nav-label">Projelerim</span>
+          <span id="projectsCountBadge" class="nav-badge">0</span>
+        </button>
+
+        <button class="nav-item" data-page="settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span class="nav-label">Ayarlar</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile-card" id="userProfileBtn">
+          <div class="avatar-circle">
+            <span id="userAvatarText">E</span>
+          </div>
+          <div class="user-meta">
+            <span class="user-name" id="userNameLabel">Eren</span>
+            <span class="user-role" id="userRoleLabel">Bitirme Projesi Yöneticisi</span>
+          </div>
+          <button class="btn-icon" id="logoutBtn" title="Çıkış Yap / Giriş Değiştir">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </button>
+        </div>
       </div>
-    </section>
+    </aside>
 
-    <!-- Live Grid (Terminal Logs & Preview Window) -->
-    <main class="dashboard-grid">
-      <!-- Terminal Console Panel -->
-      <section class="panel terminal-panel">
-        <div class="panel-header">
-          <span class="panel-title">Canlı Terminal Logları</span>
-          <button id="clearLogBtn" class="btn-link">Temizle</button>
+    <!-- Main Workspace Area -->
+    <div class="main-wrapper">
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="breadcrumb-root">Repo Runner</span>
+          <span class="breadcrumb-separator">/</span>
+          <span class="breadcrumb-current" id="pageTitle">Ana Sayfa</span>
         </div>
-        <div id="terminalLog" class="terminal-body">
-          <div class="log-placeholder">// Beklemede. Başlatmak için yukarıdaki formu kullanın.</div>
+        <div class="topbar-right">
+          <div class="status-indicator">
+            <span class="pulse-dot"></span>
+            <span class="status-text" id="globalStatusText">Sunucu Aktif</span>
+          </div>
+          <button class="btn btn-secondary-sm" id="quickRunHeaderBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Hızlı Başlat
+          </button>
         </div>
-      </section>
+      </header>
 
-      <!-- Preview Window Panel -->
-      <section class="panel preview-panel">
-        <div class="panel-header">
-          <span class="panel-title">Önizleme Ekranı</span>
-          <a id="openBrowserLink" href="#" target="_blank" class="btn-link preview-link hidden">Tarayıcıda Aç ↗</a>
-        </div>
-        <div id="previewContainer" class="preview-body">
-          <p class="preview-placeholder">Uygulama çalıştığında web görüntüsü burada belirecektir.</p>
-        </div>
-      </section>
-    </main>
+      <!-- Dynamic Page Container -->
+      <main class="content-container">
+
+        <!-- ================= PAGE 1: ANA SAYFA (DASHBOARD) ================= -->
+        <section class="page-view active" id="page-home">
+          <!-- Welcome Banner -->
+          <div class="hero-banner">
+            <div class="hero-content">
+              <div class="hero-tag">Otonom Ajan & DevOps Hattı</div>
+              <h2 class="hero-title">Herhangi bir repoyu tek tıkla izole çalıştırın</h2>
+              <p class="hero-subtitle">Kod tabanını analiz eder, framework'ü tanır, bağımlılıkları sanal ortama kurar ve doğrudan hedef porttan ayağa kaldırır.</p>
+              <div class="hero-actions">
+                <button class="btn btn-primary" id="homeToRunnerBtn">
+                  <span>🚀</span> Repo Çalıştırıcıya Git
+                </button>
+                <button class="btn btn-outline" id="homeToProjectsBtn">
+                  <span>📂</span> Kayıtlı Projeleri İncele
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">Aktif Süreçler</span>
+                <span class="stat-icon-wrapper icon-emerald">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                </span>
+              </div>
+              <div class="stat-value" id="statRunningNow">0</div>
+              <div class="stat-footer">Canlı dinleyen süreç</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">Toplam Çalıştırma</span>
+                <span class="stat-icon-wrapper icon-indigo">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                  </svg>
+                </span>
+              </div>
+              <div class="stat-value" id="statTotalRuns">0</div>
+              <div class="stat-footer">Oturum boyunca</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">Kayıtlı Projeler</span>
+                <span class="stat-icon-wrapper icon-amber">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </span>
+              </div>
+              <div class="stat-value" id="statSavedProjects">0</div>
+              <div class="stat-footer">Çalışma dizininde hazır</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">Yapay Zeka Motoru</span>
+                <span class="stat-icon-wrapper icon-purple">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                </span>
+              </div>
+              <div class="stat-value" id="statAiEngine">Ollama</div>
+              <div class="stat-footer">Hibrit LLM hazır</div>
+            </div>
+          </div>
+
+          <!-- Dual Section: Recent Repos & System Status -->
+          <div class="dashboard-split">
+            <!-- Recent Projects Column -->
+            <div class="card-box">
+              <div class="card-box-header">
+                <h3 class="card-box-title">Son Projeler ve Çalışma Alanı</h3>
+                <button class="btn-link" id="refreshProjectsListBtn">Yenile</button>
+              </div>
+              <div class="recent-projects-list" id="homeRecentProjectsList">
+                <div class="empty-state">
+                  <p class="empty-text">Henüz indirilmiş bir proje yok. Çalıştırıcı sekmesinden başlayın.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Architecture Info Column -->
+            <div class="card-box">
+              <div class="card-box-header">
+                <h3 class="card-box-title">Sistem & Çevre Özeti</h3>
+                <span class="pill-badge pill-success">Hazır</span>
+              </div>
+              <div class="env-info-list">
+                <div class="env-info-item">
+                  <span class="env-info-key">Python Motoru:</span>
+                  <span class="env-info-val" id="envPythonVer">Python 3.14</span>
+                </div>
+                <div class="env-info-item">
+                  <span class="env-info-key">İzolasyon Modeli:</span>
+                  <span class="env-info-val">Lokal .venv (Dizin Bazlı)</span>
+                </div>
+                <div class="env-info-item">
+                  <span class="env-info-key">HITL Güvenlik Duvarı:</span>
+                  <span class="env-info-val">Aktif (Kritik adımlarda sorar)</span>
+                </div>
+                <div class="env-info-item">
+                  <span class="env-info-key">Port Dinleme Aralığı:</span>
+                  <span class="env-info-val">8000, 8001, 8002, 3000</span>
+                </div>
+                <div class="env-info-item">
+                  <span class="env-info-key">Self-Healing Limiti:</span>
+                  <span class="env-info-val">Maksimum 3 Deneme</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= PAGE 2: REPO ÇALIŞTIRICI (RUNNER) ================= -->
+        <section class="page-view" id="page-runner">
+          <!-- Configuration Bar -->
+          <div class="runner-config-card">
+            <div class="config-row-primary">
+              <div class="input-field-group flex-grow">
+                <label class="field-label" for="repoInput">
+                  Git Deposu URL'si veya Bilgisayardaki Yerel Dizin
+                </label>
+                <div class="input-with-action">
+                  <input id="repoInput" type="text" class="text-input" placeholder="https://github.com/ornek/proje.git veya C:/Projelerim/uygulama">
+                  <button class="btn btn-secondary-sm" id="pasteRepoBtn" title="Panodan Yapıştır">Yapıştır</button>
+                </div>
+              </div>
+
+              <div class="input-field-group field-port">
+                <label class="field-label" for="portInput">Hedef Port</label>
+                <input id="portInput" type="number" class="text-input" value="8000">
+              </div>
+            </div>
+
+            <!-- Advanced Pipeline Options -->
+            <div class="config-row-secondary">
+              <div class="option-pill-group">
+                <span class="option-label">Çalıştırma Modu:</span>
+                <label class="radio-label">
+                  <input type="radio" name="execMode" value="standard" checked>
+                  <span class="radio-custom"></span>
+                  ⚡ Standart Mod (Kural Tabanlı)
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="execMode" value="deep_ai">
+                  <span class="radio-custom"></span>
+                  🧠 AI Derin Mod (Deneysel)
+                </label>
+              </div>
+
+              <div class="option-pill-group">
+                <span class="option-label">İzolasyon Ortamı:</span>
+                <label class="radio-label">
+                  <input type="radio" name="execEnv" value="venv" checked>
+                  <span class="radio-custom"></span>
+                  🐍 Sanal Ortam (.venv)
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="execEnv" value="docker">
+                  <span class="radio-custom"></span>
+                  🐳 Docker Konteyner
+                </label>
+              </div>
+            </div>
+
+            <!-- Run Control Bar -->
+            <div class="config-row-actions">
+              <button id="runBtn" class="btn btn-primary btn-lg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Projeyi Analiz Et ve Çalıştır</span>
+              </button>
+              <button id="stopBtn" class="btn btn-danger btn-lg hidden">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+                <span>Durdur</span>
+              </button>
+              <button id="resetBtn" class="btn btn-secondary btn-lg">
+                <span>Temizle / Sıfırla</span>
+              </button>
+
+              <div class="status-summary">
+                <span class="summary-label">Durum:</span>
+                <span id="runnerStatusBadge" class="status-badge status-ready">Hazır</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dual Execution Workspace: Terminal Console & Live Preview -->
+          <div class="workspace-grid">
+            <!-- Terminal Console Panel -->
+            <div class="panel-box terminal-box">
+              <div class="panel-box-header">
+                <div class="header-left">
+                  <span class="terminal-dots">
+                    <span class="dot dot-red"></span>
+                    <span class="dot dot-yellow"></span>
+                    <span class="dot dot-green"></span>
+                  </span>
+                  <span class="panel-box-title">Canlı Terminal ve Pipeline Logları</span>
+                </div>
+                <div class="header-right">
+                  <button class="btn-tool" id="copyLogsBtn" title="Logları Kopyala">Kopyala</button>
+                  <button class="btn-tool" id="clearTerminalBtn" title="Terminali Temizle">Temizle</button>
+                </div>
+              </div>
+              <div id="terminalLog" class="terminal-view">
+                <div class="terminal-line line-dim">// Repo Runner Ajan Terminali Hazır.</div>
+                <div class="terminal-line line-dim">// Bir repo linki girip 'Çalıştır' butonuna bastığınızda süreç buraya anlık akacaktır.</div>
+              </div>
+            </div>
+
+            <!-- Live Preview Webview Panel -->
+            <div class="panel-box preview-box">
+              <div class="panel-box-header">
+                <div class="header-left">
+                  <span class="panel-box-title">Web Uygulaması Önizleme Ekranı</span>
+                  <span id="previewPortLabel" class="port-tag hidden">Port: 8000</span>
+                </div>
+                <div class="header-right">
+                  <button class="btn-tool" id="refreshPreviewBtn" title="Önizlemeyi Yenile">Yenile</button>
+                  <a id="openBrowserLink" href="#" target="_blank" class="btn-tool btn-tool-primary hidden">Tarayıcıda Aç ↗</a>
+                </div>
+              </div>
+              <div id="previewContainer" class="preview-viewport">
+                <div class="preview-empty">
+                  <div class="preview-empty-icon">🌐</div>
+                  <h4 class="preview-empty-title">Henüz çalışan bir web servisi yok</h4>
+                  <p class="preview-empty-subtitle">Proje başarıyla derlenip port açıldığında görüntü otomatik olarak burada belirecektir.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= PAGE 3: PROJELERİM (PROJECTS) ================= -->
+        <section class="page-view" id="page-projects">
+          <div class="section-topbar">
+            <div>
+              <h2 class="section-title">Kayıtlı Projeler ve Çalışma Alanı</h2>
+              <p class="section-subtitle">Daha önce analiz edilmiş ve ortamı hazırlanmış repolar</p>
+            </div>
+            <button class="btn btn-secondary-sm" id="reloadProjectsGridBtn">Listeyi Yenile</button>
+          </div>
+
+          <div class="projects-grid" id="projectsGridContainer">
+            <!-- Dynamically populated via JavaScript -->
+          </div>
+        </section>
+
+        <!-- ================= PAGE 4: AYARLAR (SETTINGS) ================= -->
+        <section class="page-view" id="page-settings">
+          <div class="section-topbar">
+            <div>
+              <h2 class="section-title">Uygulama ve Yapay Zeka Ayarları</h2>
+              <p class="section-subtitle">Model anahtarları, port havuzu ve izolasyon tercihlerini yönetin</p>
+            </div>
+            <button class="btn btn-primary" id="saveSettingsBtn">💾 Değişiklikleri Kaydet</button>
+          </div>
+
+          <div class="settings-form-grid">
+            <!-- AI & LLM Settings Card -->
+            <div class="settings-group-card">
+              <h3 class="settings-group-title">
+                <span>🤖</span> Yapay Zeka & LLM Modeli
+              </h3>
+              <p class="settings-group-desc">Derin modda analiz yapacak ve hata ayıklayacak LLM motoru</p>
+
+              <div class="form-row">
+                <label class="form-label" for="settingAiEngine">Varsayılan Yapay Zeka Motoru</label>
+                <select id="settingAiEngine" class="form-select">
+                  <option value="ollama">Ollama (Yerel ve Çevrimdışı - Önerilen)</option>
+                  <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+                  <option value="gemini">Google Gemini (Gemini 2.5 Pro / Flash)</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <label class="form-label" for="settingOllamaUrl">Ollama Sunucu Adresi</label>
+                <input id="settingOllamaUrl" type="text" class="text-input" value="http://localhost:11434">
+              </div>
+
+              <div class="form-row">
+                <label class="form-label" for="settingOpenAiKey">OpenAI API Key (Opsiyonel)</label>
+                <input id="settingOpenAiKey" type="password" class="text-input" placeholder="sk-...">
+              </div>
+
+              <div class="form-row">
+                <label class="form-label" for="settingGeminiKey">Google Gemini API Key (Opsiyonel)</label>
+                <input id="settingGeminiKey" type="password" class="text-input" placeholder="AIza...">
+              </div>
+            </div>
+
+            <!-- Networking & Port Settings Card -->
+            <div class="settings-group-card">
+              <h3 class="settings-group-title">
+                <span>🌐</span> Port & Ağ Yapılandırması
+              </h3>
+              <p class="settings-group-desc">Projeleri çalıştırırken enjekte edilecek ve dinlenecek portlar</p>
+
+              <div class="form-row">
+                <label class="form-label" for="settingDefaultPort">Varsayılan Ana Port</label>
+                <input id="settingDefaultPort" type="number" class="text-input" value="8000">
+              </div>
+
+              <div class="form-row">
+                <label class="form-label" for="settingAltPorts">Alternatif Port Havuzu (Virgülle ayırın)</label>
+                <input id="settingAltPorts" type="text" class="text-input" value="8001, 8002, 3000, 5000">
+                <span class="field-hint">Ana port dolu olduğunda sistem sırayla bu portları dener.</span>
+              </div>
+
+              <div class="form-row">
+                <label class="form-label" for="settingPreferredEnv">Tercih Edilen İzolasyon</label>
+                <select id="settingPreferredEnv" class="form-select">
+                  <option value="venv">Sanal Ortam (.venv) - Hızlı ve Doğal</option>
+                  <option value="docker">Docker Konteyner - Tam İzolasyon</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <label class="form-label" for="settingWorkspaceDir">Çalışma Alanı Dizini</label>
+                <input id="settingWorkspaceDir" type="text" class="text-input" readonly>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
   </div>
+
+  <!-- User Profile / Auth Modal -->
+  <div class="modal-overlay hidden" id="authModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Kullanıcı Profili</h3>
+        <button class="modal-close-btn" id="closeAuthModalBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="profile-avatar-large">
+          <span id="modalAvatarText">E</span>
+        </div>
+        <div class="form-row">
+          <label class="form-label" for="inputUserName">Ad Soyad</label>
+          <input id="inputUserName" type="text" class="text-input" value="Eren">
+        </div>
+        <div class="form-row">
+          <label class="form-label" for="inputUserRole">Rol / Unvan</label>
+          <input id="inputUserRole" type="text" class="text-input" value="Bitirme Projesi Geliştiricisi">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelAuthModalBtn">Vazgeç</button>
+        <button class="btn btn-primary" id="saveUserProfileBtn">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toastNotification" class="toast hidden">
+    <span id="toastMessage">İşlem başarıyla tamamlandı.</span>
+  </div>
+
   <script src="/ui/app.js"></script>
 </body>
 </html>

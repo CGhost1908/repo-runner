@@ -46,3 +46,13 @@ class LogMessage(BaseModel):
     level: str = "INFO"
     message: str
     timestamp: float
+
+class UserSettings(BaseModel):
+    ollama_url: str = "http://localhost:11434"
+    openai_key: Optional[str] = ""
+    gemini_key: Optional[str] = ""
+    default_ai_engine: str = "ollama"
+    default_port: int = 8000
+    alt_ports: list[int] = Field(default_factory=lambda: [8001, 8002, 3000])
+    preferred_env: str = "venv"
+    workspace_dir: str = ""
