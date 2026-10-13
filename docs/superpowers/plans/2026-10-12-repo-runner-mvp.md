@@ -6,7 +6,7 @@
 
 **Architecture:** A modular Python FastAPI backend acting as the engine. It handles repo ingestion, dependency inspection, virtual environment isolation, non-blocking subprocess execution with live stdout/stderr capture, port healthcheck polling, and real-time WebSocket event dispatching. The UI connects to this engine via REST and WebSockets.
 
-**Tech Stack:** Python 3.10+, FastAPI, Uvicorn, WebSockets, Pydantic v2, Pytest, Vanilla JS / Tailwind CSS (Embedded UI).
+**Tech Stack:** Python 3.10+, FastAPI, Uvicorn, WebSockets, Pydantic v2, Pytest, Vanilla JS / Pure Semantic CSS (Embedded UI).
 
 ## Global Constraints
 
@@ -878,6 +878,7 @@ git commit -m "feat: implement FastAPI REST routes and WebSocket live log broadc
 
 **Files:**
 - Create: `backend/static/index.html`
+- Create: `backend/static/style.css`
 - Create: `backend/static/app.js`
 
 **Interfaces:**
@@ -894,74 +895,324 @@ git commit -m "feat: implement FastAPI REST routes and WebSocket live log broadc
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Repo Runner</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/ui/style.css">
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
-  <div class="max-w-6xl mx-auto p-6 space-y-6">
-    <header class="flex justify-between items-center border-b border-slate-800 pb-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <span>🚀</span> Repo Runner
+<body class="app-body">
+  <div class="app-layout">
+    <header class="app-header">
+      <div class="header-branding">
+        <h1 class="header-title">
+          <span class="header-icon">🚀</span> Repo Runner
         </h1>
-        <p class="text-sm text-slate-400">Otonom Repo Analiz ve Çalıştırma Motoru</p>
+        <p class="header-subtitle">Otonom Repo Analiz ve Çalıştırma Motoru</p>
       </div>
-      <div id="statusBadge" class="px-3 py-1 bg-slate-800 text-slate-300 rounded-full text-xs font-semibold">
+      <div id="statusBadge" class="status-badge status-ready">
         Hazır
       </div>
     </header>
 
-    <!-- Run Controls -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4 shadow-lg">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="md:col-span-2 space-y-1">
-          <label class="text-xs font-semibold text-slate-400">Git Repo Linki veya Yerel Dizin</label>
-          <input id="repoInput" type="text" placeholder="https://github.com/kullanici/repo.git veya C:/projeler/app"
-            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+    <!-- Run Controls Panel -->
+    <section class="controls-panel">
+      <div class="controls-grid">
+        <div class="form-group repo-group">
+          <label class="form-label" for="repoInput">Git Repo Linki veya Yerel Dizin</label>
+          <input id="repoInput" type="text" placeholder="https://github.com/kullanici/repo.git veya C:/projeler/app" class="form-input">
         </div>
-        <div class="space-y-1">
-          <label class="text-xs font-semibold text-slate-400">Hedef Port</label>
-          <input id="portInput" type="number" value="8000"
-            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+        <div class="form-group port-group">
+          <label class="form-label" for="portInput">Hedef Port</label>
+          <input id="portInput" type="number" value="8000" class="form-input">
         </div>
       </div>
-      <div class="flex gap-3">
-        <button id="runBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-lg transition duration-200">
+      <div class="button-group">
+        <button id="runBtn" class="btn btn-primary">
           ▶ Projeyi Analiz Et ve Çalıştır
         </button>
-        <button id="stopBtn" class="hidden bg-rose-600 hover:bg-rose-500 text-white font-medium py-2.5 px-6 rounded-lg transition duration-200">
+        <button id="stopBtn" class="btn btn-danger hidden">
           ⏹ Durdur
         </button>
       </div>
-    </div>
+    </section>
 
-    <!-- Live Grid (Logs & Preview) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Terminal Console -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl flex flex-col h-[480px] overflow-hidden shadow-lg">
-        <div class="bg-slate-950 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center">
-          <span class="text-xs font-mono font-semibold text-slate-400">Canlı Terminal Logları</span>
-          <button id="clearLogBtn" class="text-xs text-slate-500 hover:text-slate-300">Temizle</button>
+    <!-- Live Grid (Terminal Logs & Preview Window) -->
+    <main class="dashboard-grid">
+      <!-- Terminal Console Panel -->
+      <section class="panel terminal-panel">
+        <div class="panel-header">
+          <span class="panel-title">Canlı Terminal Logları</span>
+          <button id="clearLogBtn" class="btn-link">Temizle</button>
         </div>
-        <div id="terminalLog" class="p-4 font-mono text-xs text-emerald-400 overflow-y-auto flex-1 space-y-1 bg-slate-950 select-text">
-          <div class="text-slate-600">// Beklemede. Başlatmak için yukarıdaki formu kullanın.</div>
+        <div id="terminalLog" class="terminal-body">
+          <div class="log-placeholder">// Beklemede. Başlatmak için yukarıdaki formu kullanın.</div>
         </div>
-      </div>
+      </section>
 
-      <!-- Preview Window -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl flex flex-col h-[480px] overflow-hidden shadow-lg">
-        <div class="bg-slate-950 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center">
-          <span class="text-xs font-mono font-semibold text-slate-400">Önizleme Ekranı</span>
-          <a id="openBrowserLink" href="#" target="_blank" class="hidden text-xs text-indigo-400 hover:text-indigo-300">Tarayıcıda Aç ↗</a>
+      <!-- Preview Window Panel -->
+      <section class="panel preview-panel">
+        <div class="panel-header">
+          <span class="panel-title">Önizleme Ekranı</span>
+          <a id="openBrowserLink" href="#" target="_blank" class="btn-link preview-link hidden">Tarayıcıda Aç ↗</a>
         </div>
-        <div id="previewContainer" class="flex-1 flex items-center justify-center bg-slate-950">
-          <p class="text-xs text-slate-500">Uygulama çalıştığında web görüntüsü burada belirecektir.</p>
+        <div id="previewContainer" class="preview-body">
+          <p class="preview-placeholder">Uygulama çalıştığında web görüntüsü burada belirecektir.</p>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
   <script src="/ui/app.js"></script>
 </body>
 </html>
+```
+
+```css
+/* backend/static/style.css */
+:root {
+  --bg-main: #020617;
+  --bg-card: #0f172a;
+  --bg-card-header: #020617;
+  --border-color: #1e293b;
+  --border-focus: #6366f1;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --accent-primary: #4f46e5;
+  --accent-primary-hover: #4338ca;
+  --accent-danger: #e11d48;
+  --accent-danger-hover: #be123c;
+  --accent-terminal: #34d399;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body.app-body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  min-height: 100vh;
+}
+
+.app-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+.header-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #1e293b;
+  color: var(--text-muted);
+}
+
+.status-badge.status-ready { background-color: #1e293b; color: var(--text-muted); }
+.status-badge.status-processing { background-color: #451a03; color: #fdba74; }
+.status-badge.status-running { background-color: #064e3b; color: #6ee7b7; }
+.status-badge.status-stopped { background-color: #4c0519; color: #fda4af; }
+
+.controls-panel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .controls-grid { grid-template-columns: 1fr; }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.form-input {
+  background-color: var(--bg-card-header);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text-main);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  border-color: var(--border-focus);
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.btn-primary {
+  flex: 1;
+  background-color: var(--accent-primary);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-primary-hover);
+}
+
+.btn-danger {
+  background-color: var(--accent-danger);
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background-color: var(--accent-danger-hover);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 992px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+  overflow: hidden;
+}
+
+.panel-header {
+  background-color: var(--bg-card-header);
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-title {
+  font-size: 0.75rem;
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-link:hover {
+  color: var(--text-main);
+}
+
+.preview-link {
+  color: var(--accent-primary);
+}
+
+.terminal-body {
+  background-color: #020617;
+  padding: 16px;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--accent-terminal);
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  user-select: text;
+}
+
+.log-placeholder {
+  color: var(--text-dim);
+}
+
+.preview-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #020617;
+}
+
+.preview-placeholder {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.hidden {
+  display: none !important;
+}
 ```
 
 ```javascript
@@ -997,7 +1248,7 @@ runBtn.addEventListener("click", async () => {
   terminalLog.innerHTML = "";
   appendLog(`[Sistem] Başlatılıyor: ${value}`);
 
-  statusBadge.className = "px-3 py-1 bg-amber-900/60 text-amber-300 rounded-full text-xs font-semibold";
+  statusBadge.className = "status-badge status-processing";
   statusBadge.textContent = "İşleniyor...";
   runBtn.disabled = true;
 
@@ -1024,7 +1275,7 @@ stopBtn.addEventListener("click", async () => {
   appendLog("[Sistem] Uygulama durduruldu.");
   stopBtn.classList.add("hidden");
   runBtn.disabled = false;
-  statusBadge.className = "px-3 py-1 bg-rose-900/60 text-rose-300 rounded-full text-xs font-semibold";
+  statusBadge.className = "status-badge status-stopped";
   statusBadge.textContent = "Durduruldu";
 });
 
@@ -1037,7 +1288,7 @@ function connectWebSocket(runId, port) {
     appendLog(data.message);
 
     if (data.message.includes("canlı yayında")) {
-      statusBadge.className = "px-3 py-1 bg-emerald-900/60 text-emerald-300 rounded-full text-xs font-semibold";
+      statusBadge.className = "status-badge status-running";
       statusBadge.textContent = `Çalışıyor (${port})`;
       showPreview(port);
     }
@@ -1052,7 +1303,7 @@ function showPreview(port) {
   const url = `http://localhost:${port}`;
   openBrowserLink.href = url;
   openBrowserLink.classList.remove("hidden");
-  previewContainer.innerHTML = `<iframe src="${url}" class="w-full h-full border-none"></iframe>`;
+  previewContainer.innerHTML = `<iframe src="${url}" class="preview-iframe"></iframe>`;
 }
 ```
 
