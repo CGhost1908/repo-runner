@@ -67,18 +67,18 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
         asyncio.run_coroutine_threadsafe(broadcast_log(run_id, msg), loop)
 
     try:
-        await broadcast_log(run_id, "--> Adım 1: Repo hazırlanıyor...")
+        await broadcast_log(run_id, "--> Step 1: Preparing repository...")
         target_dir = await asyncio.to_thread(repo_manager.prepare_repo, request, run_id)
-        await broadcast_log(run_id, f"Repo hazırlandı: {target_dir}")
+        await broadcast_log(run_id, f"Repository ready: {target_dir}")
 
-        await broadcast_log(run_id, "--> Adım 2: Teknoloji stack analizi yapılıyor...")
+        await broadcast_log(run_id, "--> Step 2: Analyzing technology stack...")
         stack_info = detector.analyze(target_dir, port=request.port)
         active_runs[run_id]["framework"] = stack_info.framework
-        await broadcast_log(run_id, f"Tespit edilen çatı: {stack_info.framework} (Standart Mod: {stack_info.is_standard})")
+        await broadcast_log(run_id, f"Detected framework: {stack_info.framework} (Standard Mode: {stack_info.is_standard})")
 
         # If not standard or user explicitly requested AI Deep Mode, trigger AI Planner
         if not stack_info.is_standard or request.mode == ExecutionMode.DEEP_AI:
-            await broadcast_log(run_id, "🧠 [AI Derin Mod] Otonom analiz motoru devreye girdi...")
+            await broadcast_log(run_id, "🧠 [AI Deep Mode] Autonomous analysis engine engaged...")
             ai_stack_info, decision_logs = ai_planner.plan(target_dir, port=request.port)
             for dlog in decision_logs:
                 await broadcast_log(run_id, dlog)
@@ -89,24 +89,24 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
 
         # Step 3: Dependencies installation (if needed)
         if stack_info.install_command:
-            await broadcast_log(run_id, "--> Adım 3: Sanal ortam hazırlanıyor ve bağımlılıklar yükleniyor...")
+            await broadcast_log(run_id, "--> Step 3: Preparing virtual environment and installing dependencies...")
             active_runs[run_id]["status"] = StatusEnum.INSTALLING
             python_bin = await asyncio.to_thread(env_manager.create_venv, target_dir, log)
             await broadcast_log(run_id, f"💻 $ {stack_info.install_command}")
             success = await asyncio.to_thread(env_manager.install_dependencies, target_dir, stack_info.install_command, log)
             if not success:
-                await broadcast_log(run_id, "❌ HATA: Bağımlılık kurulumu başarısız oldu!")
+                await broadcast_log(run_id, "❌ ERROR: Dependency installation failed!")
                 active_runs[run_id]["status"] = StatusEnum.FAILED
                 return
         else:
-            await broadcast_log(run_id, "--> Adım 3: Bağımlılık kurulumu atlanıyor (Gereksinim yok).")
+            await broadcast_log(run_id, "--> Step 3: Skipping dependency installation (No requirements specified).")
 
         # Step 4: Launching application
-        await broadcast_log(run_id, f"--> Adım 4: Uygulama başlatılıyor (Port: {request.port})...")
+        await broadcast_log(run_id, f"--> Step 4: Launching application (Port: {request.port})...")
         active_runs[run_id]["status"] = StatusEnum.RUNNING
 
         if not stack_info.run_command:
-            await broadcast_log(run_id, "❌ HATA: Çalıştırılabilir bir komut bulunamadı.")
+            await broadcast_log(run_id, "❌ ERROR: No executable launch command found.")
             active_runs[run_id]["status"] = StatusEnum.FAILED
             return
 
@@ -127,16 +127,16 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
         await broadcast_log(run_id, f"💻 $ {' '.join(cmd)}")
         process_runner.start(run_id, cmd, target_dir, log_cb=log)
 
-        await broadcast_log(run_id, "--> Port sağlık kontrolü yapılıyor...")
+        await broadcast_log(run_id, "--> Performing port health check...")
         healthy = await process_runner.check_health(request.port, timeout_seconds=6.0)
         active_runs[run_id]["is_healthy"] = healthy
         if healthy:
-            await broadcast_log(run_id, f"✅ Başarılı! Uygulama http://localhost:{request.port} üzerinde canlı yayında.")
+            await broadcast_log(run_id, f"✅ Success! Application is live at http://localhost:{request.port}")
         else:
-            await broadcast_log(run_id, f"ℹ️ Süreç başlatıldı (PID aktif). Port yanıtı bekleniyor: http://localhost:{request.port}")
+            await broadcast_log(run_id, f"ℹ️ Process spawned (PID active). Awaiting port response: http://localhost:{request.port}")
 
     except Exception as e:
-        await broadcast_log(run_id, f"❌ Kritik Hata: {str(e)}")
+        await broadcast_log(run_id, f"❌ Critical Error: {str(e)}")
         active_runs[run_id]["status"] = StatusEnum.FAILED
 
 @router.post("/stop/{run_id}")

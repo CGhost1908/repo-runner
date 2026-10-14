@@ -18,10 +18,10 @@ function switchPage(pageId) {
   });
 
   const titles = {
-    home: "Ana Sayfa",
-    runner: "Repo Çalıştırıcı",
-    projects: "Projelerim",
-    settings: "Ayarlar"
+    home: "Home",
+    runner: "Repo Runner",
+    projects: "My Projects",
+    settings: "Settings"
   };
 
   if (pageTitle) {
@@ -64,7 +64,7 @@ function showToast(message) {
 
 // User Profile Management (Local Persistence)
 function loadUserProfile() {
-  const profile = JSON.parse(localStorage.getItem("repo_runner_profile") || '{"name":"Eren","role":"Bitirme Projesi Geliştiricisi"}');
+  const profile = JSON.parse(localStorage.getItem("repo_runner_profile") || '{"name":"Eren","role":"Project Administrator"}');
   const nameLabel = document.getElementById("userNameLabel");
   const roleLabel = document.getElementById("userRoleLabel");
   const avatarText = document.getElementById("userAvatarText");
@@ -94,18 +94,18 @@ document.getElementById("cancelAuthModalBtn")?.addEventListener("click", () => {
 });
 document.getElementById("saveUserProfileBtn")?.addEventListener("click", () => {
   const name = document.getElementById("inputUserName")?.value.trim() || "Eren";
-  const role = document.getElementById("inputUserRole")?.value.trim() || "Geliştirici";
+  const role = document.getElementById("inputUserRole")?.value.trim() || "Developer";
   localStorage.setItem("repo_runner_profile", JSON.stringify({ name, role }));
   loadUserProfile();
   authModal?.classList.add("hidden");
-  showToast("Profil bilgileri güncellendi.");
+  showToast("Profile details updated.");
 });
 document.getElementById("logoutBtn")?.addEventListener("click", (e) => {
   e.stopPropagation();
-  if (confirm("Oturumu kapatmak ve profili sıfırlamak istiyor musunuz?")) {
+  if (confirm("Are you sure you want to sign out and reset your profile?")) {
     localStorage.removeItem("repo_runner_profile");
     loadUserProfile();
-    showToast("Oturum sıfırlandı.");
+    showToast("Session reset.");
   }
 });
 
@@ -145,7 +145,7 @@ async function loadRecentProjects() {
     const projects = await res.json();
 
     if (projects.length === 0) {
-      container.innerHTML = `<div class="empty-state"><p class="empty-text">Henüz indirilmiş bir proje yok. Çalıştırıcı sekmesinden başlayın.</p></div>`;
+      container.innerHTML = `<div class="empty-state"><p class="empty-text">No downloaded projects yet. Start from the Runner tab.</p></div>`;
       return;
     }
 
@@ -157,7 +157,7 @@ async function loadRecentProjects() {
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
           <span class="item-badge">${escapeHtml(p.framework.toUpperCase())}</span>
-          <button class="btn-secondary-sm btn-load-project" data-path="${escapeHtml(p.path)}">Çalıştır</button>
+          <button class="btn-secondary-sm btn-load-project" data-path="${escapeHtml(p.path)}">Run</button>
         </div>
       </div>
     `).join("");
@@ -177,7 +177,7 @@ async function loadProjectsGrid() {
     const projects = await res.json();
 
     if (projects.length === 0) {
-      container.innerHTML = `<div class="empty-state" style="grid-column: 1/-1;"><p class="empty-text">Henüz indirilmiş bir proje yok.</p></div>`;
+      container.innerHTML = `<div class="empty-state" style="grid-column: 1/-1;"><p class="empty-text">No downloaded projects found.</p></div>`;
       return;
     }
 
@@ -190,10 +190,10 @@ async function loadProjectsGrid() {
         <div class="project-path">${escapeHtml(p.path)}</div>
         <div class="project-card-actions">
           <button class="btn btn-primary btn-sm flex-grow btn-load-project" data-path="${escapeHtml(p.path)}">
-            🚀 Yükle & Çalıştır
+            🚀 Load & Run
           </button>
           <button class="btn btn-secondary-sm btn-delete-project" data-name="${escapeHtml(p.name)}">
-            🗑 Sil
+            🗑 Delete
           </button>
         </div>
       </div>
@@ -224,22 +224,22 @@ window.loadProjectIntoRunner = function(path) {
   const repoInput = document.getElementById("repoInput");
   if (repoInput) repoInput.value = path;
   switchPage("runner");
-  showToast("Proje çalıştırıcıya aktarıldı.");
+  showToast("Project loaded into runner.");
 };
 
 window.deleteProject = async function(name) {
-  if (!confirm(`'${name}' projesini silmek istediğinize emin misiniz?`)) return;
+  if (!confirm(`Are you sure you want to delete project '${name}'?`)) return;
   try {
     const res = await fetch(`/api/projects/${name}`, { method: "DELETE" });
     if (res.ok) {
-      showToast("Proje silindi.");
+      showToast("Project deleted.");
       loadProjectsGrid();
       loadSystemStats();
     } else {
-      alert("Proje silinemedi.");
+      alert("Could not delete project.");
     }
   } catch (err) {
-    alert("Silme hatası: " + err.message);
+    alert("Delete error: " + err.message);
   }
 };
 
@@ -262,10 +262,10 @@ pasteRepoBtn?.addEventListener("click", async () => {
     const text = await navigator.clipboard.readText();
     if (text && repoInput) {
       repoInput.value = text.trim();
-      showToast("Pano içeriği yapıştırıldı.");
+      showToast("Clipboard content pasted.");
     }
   } catch (err) {
-    showToast("Panoya erişilemedi, lütfen elle yapıştırın.");
+    showToast("Could not access clipboard, please paste manually.");
   }
 });
 
@@ -274,13 +274,13 @@ function appendTerminalLine(text) {
   const line = document.createElement("div");
   line.className = "terminal-line";
 
-  if (text.includes("--> Adım")) {
+  if (text.includes("--> Step")) {
     line.className += " line-info";
-  } else if (text.includes("✅") || text.includes("canlı yayında")) {
+  } else if (text.includes("✅") || text.includes("live at")) {
     line.className += " line-success";
-  } else if (text.includes("⚠️") || text.includes("UYARI")) {
+  } else if (text.includes("⚠️") || text.includes("WARNING")) {
     line.className += " line-warning";
-  } else if (text.includes("❌") || text.includes("HATA")) {
+  } else if (text.includes("❌") || text.includes("ERROR") || text.includes("Critical Error")) {
     line.className += " line-error";
   }
 
@@ -290,7 +290,7 @@ function appendTerminalLine(text) {
 }
 
 document.getElementById("clearTerminalBtn")?.addEventListener("click", () => {
-  if (terminalLog) terminalLog.innerHTML = `<div class="terminal-line line-dim">// Terminal temizlendi.</div>`;
+  if (terminalLog) terminalLog.innerHTML = `<div class="terminal-line line-dim">// Terminal cleared.</div>`;
 });
 
 document.getElementById("copyLogsBtn")?.addEventListener("click", async () => {
@@ -298,9 +298,9 @@ document.getElementById("copyLogsBtn")?.addEventListener("click", async () => {
   const text = terminalLog.innerText;
   try {
     await navigator.clipboard.writeText(text);
-    showToast("Terminal logları kopyalandı.");
+    showToast("Terminal logs copied.");
   } catch (err) {
-    showToast("Loglar kopyalanamadı.");
+    showToast("Failed to copy logs.");
   }
 });
 
@@ -308,28 +308,28 @@ document.getElementById("refreshPreviewBtn")?.addEventListener("click", () => {
   const iframe = previewContainer?.querySelector("iframe");
   if (iframe) {
     iframe.src = iframe.src;
-    showToast("Önizleme yenilendi.");
+    showToast("Preview refreshed.");
   }
 });
 
 resetBtn?.addEventListener("click", () => {
   if (repoInput) repoInput.value = "";
-  if (terminalLog) terminalLog.innerHTML = `<div class="terminal-line line-dim">// Terminal sıfırlandı.</div>`;
+  if (terminalLog) terminalLog.innerHTML = `<div class="terminal-line line-dim">// Terminal reset.</div>`;
   if (previewContainer) {
     previewContainer.innerHTML = `
       <div class="preview-empty">
         <div class="preview-empty-icon">🌐</div>
-        <h4 class="preview-empty-title">Henüz çalışan bir web servisi yok</h4>
-        <p class="preview-empty-subtitle">Proje başarıyla derlenip port açıldığında görüntü otomatik olarak burada belirecektir.</p>
+        <h4 class="preview-empty-title">No active web service running</h4>
+        <p class="preview-empty-subtitle">Once the project builds and opens a port, the preview will automatically appear here.</p>
       </div>`;
   }
   if (openBrowserLink) openBrowserLink.classList.add("hidden");
   if (previewPortLabel) previewPortLabel.classList.add("hidden");
   if (runnerStatusBadge) {
     runnerStatusBadge.className = "status-badge status-ready";
-    runnerStatusBadge.textContent = "Hazır";
+    runnerStatusBadge.textContent = "Ready";
   }
-  showToast("Alanlar sıfırlandı.");
+  showToast("Fields reset.");
 });
 
 runBtn?.addEventListener("click", async () => {
@@ -339,7 +339,7 @@ runBtn?.addEventListener("click", async () => {
   const preferred_env = document.querySelector('input[name="execEnv"]:checked')?.value || "venv";
 
   if (!value) {
-    alert("Lütfen bir GitHub repository URL'si veya yerel proje yolu girin!");
+    alert("Please enter a GitHub repository URL or local project path!");
     return;
   }
 
@@ -352,12 +352,12 @@ runBtn?.addEventListener("click", async () => {
   };
 
   terminalLog.innerHTML = "";
-  appendTerminalLine(`[Sistem] Başlatılıyor: ${value}`);
-  appendTerminalLine(`[Sistem] Hedef Port: ${port} | Mod: ${mode.toUpperCase()} | Ortam: ${preferred_env.toUpperCase()}`);
+  appendTerminalLine(`[System] Launching: ${value}`);
+  appendTerminalLine(`[System] Target Port: ${port} | Mode: ${mode.toUpperCase()} | Env: ${preferred_env.toUpperCase()}`);
 
   if (runnerStatusBadge) {
     runnerStatusBadge.className = "status-badge status-processing";
-    runnerStatusBadge.textContent = "İşleniyor...";
+    runnerStatusBadge.textContent = "Processing...";
   }
   runBtn.disabled = true;
 
@@ -373,11 +373,11 @@ runBtn?.addEventListener("click", async () => {
     stopBtn?.classList.remove("hidden");
     connectRunnerWs(currentRunId, port);
   } catch (err) {
-    appendTerminalLine(`❌ Sunucuya bağlanılamadı: ${err.message}`);
+    appendTerminalLine(`❌ Failed to connect to server: ${err.message}`);
     runBtn.disabled = false;
     if (runnerStatusBadge) {
       runnerStatusBadge.className = "status-badge status-stopped";
-      runnerStatusBadge.textContent = "Hata";
+      runnerStatusBadge.textContent = "Error";
     }
   }
 });
@@ -385,13 +385,13 @@ runBtn?.addEventListener("click", async () => {
 stopBtn?.addEventListener("click", async () => {
   if (!currentRunId) return;
   await fetch(`/api/stop/${currentRunId}`, { method: "POST" });
-  appendTerminalLine("[Sistem] Uygulama kullanıcı isteğiyle durduruldu.");
+  appendTerminalLine("[System] Application stopped by user request.");
   stopBtn?.classList.add("hidden");
   runBtn.disabled = false;
 
   if (runnerStatusBadge) {
     runnerStatusBadge.className = "status-badge status-stopped";
-    runnerStatusBadge.textContent = "Durduruldu";
+    runnerStatusBadge.textContent = "Stopped";
   }
   if (navLiveIndicator) navLiveIndicator.classList.add("hidden");
   loadSystemStats();
@@ -407,13 +407,13 @@ function appendTerminalLine(text) {
   const line = document.createElement("div");
   line.className = "terminal-line";
 
-  if (text.includes("--> Adım")) {
+  if (text.includes("--> Step")) {
     line.className += " line-info";
-  } else if (text.includes("✅") || text.includes("canlı yayında")) {
+  } else if (text.includes("✅") || text.includes("live at")) {
     line.className += " line-success";
-  } else if (text.includes("⚠️") || text.includes("UYARI")) {
+  } else if (text.includes("⚠️") || text.includes("WARNING")) {
     line.className += " line-warning";
-  } else if (text.includes("❌") || text.includes("HATA") || text.includes("Kritik Hata")) {
+  } else if (text.includes("❌") || text.includes("ERROR") || text.includes("Critical Error")) {
     line.className += " line-error";
   } else if (text.includes("💻 $")) {
     line.className += " line-info";
@@ -442,18 +442,18 @@ function connectRunnerWs(runId, port) {
       const data = JSON.parse(event.data);
       appendTerminalLine(data.message);
 
-      if (data.message.includes("canlı yayında")) {
+      if (data.message.includes("live at") || data.message.includes("canlı yayında")) {
         if (runnerStatusBadge) {
           runnerStatusBadge.className = "status-badge status-running";
-          runnerStatusBadge.textContent = `Çalışıyor (${port})`;
+          runnerStatusBadge.textContent = `Running (${port})`;
         }
         if (navLiveIndicator) navLiveIndicator.classList.remove("hidden");
         showPreviewApp(port);
         loadSystemStats();
-      } else if (data.message.includes("❌") || data.message.includes("HATA") || data.message.includes("Kritik Hata")) {
+      } else if (data.message.includes("❌") || data.message.includes("ERROR") || data.message.includes("HATA") || data.message.includes("Critical Error")) {
         if (runnerStatusBadge) {
           runnerStatusBadge.className = "status-badge status-stopped";
-          runnerStatusBadge.textContent = "Hata";
+          runnerStatusBadge.textContent = "Error";
         }
         if (runBtn) runBtn.disabled = false;
         if (stopBtn) stopBtn.classList.add("hidden");
@@ -489,14 +489,14 @@ function connectRunnerWs(runId, port) {
         if (data.is_healthy) {
           if (runnerStatusBadge) {
             runnerStatusBadge.className = "status-badge status-running";
-            runnerStatusBadge.textContent = `Çalışıyor (${port})`;
+            runnerStatusBadge.textContent = `Running (${port})`;
           }
           if (navLiveIndicator) navLiveIndicator.classList.remove("hidden");
           showPreviewApp(port);
         } else if (data.status === "failed") {
           if (runnerStatusBadge) {
             runnerStatusBadge.className = "status-badge status-stopped";
-            runnerStatusBadge.textContent = "Hata";
+            runnerStatusBadge.textContent = "Error";
           }
           if (runBtn) runBtn.disabled = false;
           if (stopBtn) stopBtn.classList.add("hidden");
@@ -577,13 +577,13 @@ document.getElementById("saveSettingsBtn")?.addEventListener("click", async () =
       body: JSON.stringify(payload)
     });
     if (res.ok) {
-      showToast("Ayarlar başarıyla kaydedildi.");
+      showToast("Settings saved successfully.");
       loadSystemStats();
     } else {
-      alert("Ayarlar kaydedilemedi.");
+      alert("Could not save settings.");
     }
   } catch (err) {
-    alert("Kaydetme hatası: " + err.message);
+    alert("Save error: " + err.message);
   }
 });
 

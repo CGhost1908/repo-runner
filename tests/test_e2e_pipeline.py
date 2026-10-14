@@ -25,4 +25,4 @@ async def test_e2e_pipeline_on_local_sample(tmp_path):
 
     run_data = active_runs[run_id]
     assert run_data["framework"] in ["generic_python", "fastapi"]
-    assert any("Repo hazırlandı" in log for log in run_data["logs"])
+    assert any("Repository ready" in log for log in run_data["logs"])
