@@ -1,0 +1,15 @@
+{
+  "name": "repo-runner",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:frontend": "npm run build --prefix frontend",
+    "tauri": "tauri --config tauri/tauri.conf.json",
+    "tauri:dev": "npx @tauri-apps/cli dev --config tauri/tauri.conf.json",
+    "tauri:build": "npx @tauri-apps/cli build --config tauri/tauri.conf.json"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.2"
+  }
+}

@@ -9,3 +9,7 @@ venv/
 dist/
 build/
 .repo-runner/
+
+node_modules/
+tauri/target/
+frontend/dist/

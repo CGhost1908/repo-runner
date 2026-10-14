@@ -17,6 +17,10 @@ static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/ui", StaticFiles(directory=str(static_dir), html=True), name="static")
 
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/app", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+
 @app.websocket("/ws/logs/{run_id}")
 async def websocket_logs(websocket: WebSocket, run_id: str):
     await websocket.accept()
