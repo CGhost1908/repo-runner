@@ -397,9 +397,41 @@ stopBtn?.addEventListener("click", async () => {
   loadSystemStats();
 });
 
+let lastAppendedLog = "";
+function appendTerminalLine(text) {
+  if (!terminalLog || !text) return;
+  const trimmed = text.trim();
+  if (trimmed === lastAppendedLog && trimmed.length > 10) return;
+  lastAppendedLog = trimmed;
+
+  const line = document.createElement("div");
+  line.className = "terminal-line";
+
+  if (text.includes("--> Adım")) {
+    line.className += " line-info";
+  } else if (text.includes("✅") || text.includes("canlı yayında")) {
+    line.className += " line-success";
+  } else if (text.includes("⚠️") || text.includes("UYARI")) {
+    line.className += " line-warning";
+  } else if (text.includes("❌") || text.includes("HATA") || text.includes("Kritik Hata")) {
+    line.className += " line-error";
+  } else if (text.includes("💻 $")) {
+    line.className += " line-info";
+  }
+
+  line.textContent = text;
+  terminalLog.appendChild(line);
+  terminalLog.scrollTop = terminalLog.scrollHeight;
+}
+
+let activeLogPoller = null;
+
 function connectRunnerWs(runId, port) {
   if (activeWs) {
     try { activeWs.close(); } catch (_) {}
+  }
+  if (activeLogPoller) {
+    clearInterval(activeLogPoller);
   }
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -434,6 +466,44 @@ function connectRunnerWs(runId, port) {
   activeWs.onclose = () => {
     runBtn.disabled = false;
   };
+
+  // Robust Dual-Channel Fallback: Poll status in background so no logs are ever lost
+  let seenCount = 0;
+  activeLogPoller = setInterval(async () => {
+    if (!currentRunId || currentRunId !== runId) {
+      clearInterval(activeLogPoller);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/status/${runId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const logs = data.logs || [];
+        if (logs.length > seenCount) {
+          for (let i = seenCount; i < logs.length; i++) {
+            appendTerminalLine(logs[i]);
+          }
+          seenCount = logs.length;
+        }
+
+        if (data.is_healthy) {
+          if (runnerStatusBadge) {
+            runnerStatusBadge.className = "status-badge status-running";
+            runnerStatusBadge.textContent = `Çalışıyor (${port})`;
+          }
+          if (navLiveIndicator) navLiveIndicator.classList.remove("hidden");
+          showPreviewApp(port);
+        } else if (data.status === "failed") {
+          if (runnerStatusBadge) {
+            runnerStatusBadge.className = "status-badge status-stopped";
+            runnerStatusBadge.textContent = "Hata";
+          }
+          if (runBtn) runBtn.disabled = false;
+          if (stopBtn) stopBtn.classList.add("hidden");
+        }
+      }
+    } catch (_) {}
+  }, 1000);
 }
 
 function showPreviewApp(port) {

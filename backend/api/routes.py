@@ -68,7 +68,7 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
 
     try:
         await broadcast_log(run_id, "--> Adım 1: Repo hazırlanıyor...")
-        target_dir = repo_manager.prepare_repo(request, run_id)
+        target_dir = await asyncio.to_thread(repo_manager.prepare_repo, request, run_id)
         await broadcast_log(run_id, f"Repo hazırlandı: {target_dir}")
 
         await broadcast_log(run_id, "--> Adım 2: Teknoloji stack analizi yapılıyor...")
@@ -91,9 +91,9 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
         if stack_info.install_command:
             await broadcast_log(run_id, "--> Adım 3: Sanal ortam hazırlanıyor ve bağımlılıklar yükleniyor...")
             active_runs[run_id]["status"] = StatusEnum.INSTALLING
-            python_bin = env_manager.create_venv(target_dir, log_cb=log)
+            python_bin = await asyncio.to_thread(env_manager.create_venv, target_dir, log)
             await broadcast_log(run_id, f"💻 $ {stack_info.install_command}")
-            success = env_manager.install_dependencies(target_dir, stack_info.install_command, log_cb=log)
+            success = await asyncio.to_thread(env_manager.install_dependencies, target_dir, stack_info.install_command, log)
             if not success:
                 await broadcast_log(run_id, "❌ HATA: Bağımlılık kurulumu başarısız oldu!")
                 active_runs[run_id]["status"] = StatusEnum.FAILED
