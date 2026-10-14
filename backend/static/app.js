@@ -157,7 +157,7 @@ async function loadRecentProjects() {
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
           <span class="item-badge">${escapeHtml(p.framework.toUpperCase())}</span>
-          <button class="btn-secondary-sm" onclick="loadProjectIntoRunner('${escapeHtml(p.path)}')">Çalıştır</button>
+          <button class="btn-secondary-sm btn-load-project" data-path="${escapeHtml(p.path)}">Çalıştır</button>
         </div>
       </div>
     `).join("");
@@ -189,10 +189,10 @@ async function loadProjectsGrid() {
         </div>
         <div class="project-path">${escapeHtml(p.path)}</div>
         <div class="project-card-actions">
-          <button class="btn btn-primary btn-sm flex-grow" onclick="loadProjectIntoRunner('${escapeHtml(p.path)}')">
+          <button class="btn btn-primary btn-sm flex-grow btn-load-project" data-path="${escapeHtml(p.path)}">
             🚀 Yükle & Çalıştır
           </button>
-          <button class="btn btn-secondary-sm" onclick="deleteProject('${escapeHtml(p.name)}')">
+          <button class="btn btn-secondary-sm btn-delete-project" data-name="${escapeHtml(p.name)}">
             🗑 Sil
           </button>
         </div>
@@ -205,6 +205,20 @@ async function loadProjectsGrid() {
 
 document.getElementById("reloadProjectsGridBtn")?.addEventListener("click", loadProjectsGrid);
 document.getElementById("refreshProjectsListBtn")?.addEventListener("click", loadRecentProjects);
+
+// Delegated click handlers for project buttons
+document.addEventListener("click", (e) => {
+  const loadBtn = e.target.closest(".btn-load-project");
+  if (loadBtn) {
+    const path = loadBtn.getAttribute("data-path");
+    if (path) loadProjectIntoRunner(path);
+  }
+  const delBtn = e.target.closest(".btn-delete-project");
+  if (delBtn) {
+    const name = delBtn.getAttribute("data-name");
+    if (name) deleteProject(name);
+  }
+});
 
 window.loadProjectIntoRunner = function(path) {
   const repoInput = document.getElementById("repoInput");
@@ -404,6 +418,13 @@ function connectRunnerWs(runId, port) {
         if (navLiveIndicator) navLiveIndicator.classList.remove("hidden");
         showPreviewApp(port);
         loadSystemStats();
+      } else if (data.message.includes("❌") || data.message.includes("HATA") || data.message.includes("Kritik Hata")) {
+        if (runnerStatusBadge) {
+          runnerStatusBadge.className = "status-badge status-stopped";
+          runnerStatusBadge.textContent = "Hata";
+        }
+        if (runBtn) runBtn.disabled = false;
+        if (stopBtn) stopBtn.classList.add("hidden");
       }
     } catch (_) {
       appendTerminalLine(event.data);

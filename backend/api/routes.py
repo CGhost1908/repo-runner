@@ -169,7 +169,7 @@ def list_projects():
                 projects.append({
                     "id": d.name,
                     "name": d.name,
-                    "path": str(d),
+                    "path": d.as_posix(),
                     "framework": stack.framework,
                     "is_standard": stack.is_standard,
                     "has_dockerfile": stack.has_dockerfile,

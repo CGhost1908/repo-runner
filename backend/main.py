@@ -16,6 +16,16 @@ async def websocket_logs(websocket: WebSocket, run_id: str):
     if run_id not in ws_connections:
         ws_connections[run_id] = []
     ws_connections[run_id].append(websocket)
+
+    # Replay past logs for this run so client never misses early logs
+    from backend.api.routes import active_runs
+    if run_id in active_runs:
+        for past_log in active_runs[run_id].get("logs", []):
+            try:
+                await websocket.send_json({"run_id": run_id, "message": past_log})
+            except Exception:
+                pass
+
     try:
         while True:
             await websocket.receive_text()

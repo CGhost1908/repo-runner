@@ -10,9 +10,10 @@ class RepoManager:
 
     def prepare_repo(self, request: RunRequest, run_id: str) -> Path:
         if request.local_path:
-            local_path = Path(request.local_path).resolve()
+            clean_str = request.local_path.strip().strip('"').strip("'")
+            local_path = Path(clean_str).resolve()
             if not local_path.exists() or not local_path.is_dir():
-                raise FileNotFoundError(f"Local path does not exist or is not a directory: {request.local_path}")
+                raise FileNotFoundError(f"Local path does not exist or is not a directory: {clean_str}")
             return local_path
 
         if request.repo_url:
