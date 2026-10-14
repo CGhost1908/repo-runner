@@ -33,6 +33,17 @@ class StackDetector:
                 has_dockerfile=has_dockerfile
             )
 
+        # Check Static HTML / Web projects
+        if (repo_dir / "index.html").exists():
+            return StackInfo(
+                framework="static_html",
+                is_standard=True,
+                install_command=None,
+                run_command=f"python -m http.server {port}",
+                has_dockerfile=has_dockerfile,
+                entrypoint="index.html"
+            )
+
         # Unknown / Deep AI Mode
         return StackInfo(
             framework="unknown",

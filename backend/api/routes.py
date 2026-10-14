@@ -1,7 +1,7 @@
 import uuid
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
-from backend.models import RunRequest, StatusEnum
+from backend.models import RunRequest, StatusEnum, ExecutionMode
 from backend.config import get_settings
 from backend.services.repo_manager import RepoManager
 from backend.services.detector import StackDetector
@@ -20,6 +20,16 @@ env_manager = EnvManager()
 process_runner = ProcessRunner()
 
 async def broadcast_log(run_id: str, message: str):
+    # Print to console so user sees live logs in terminal (safe on Windows)
+    try:
+        print(f"[{run_id}] {message}", flush=True)
+    except Exception:
+        try:
+            safe_msg = message.encode("ascii", "replace").decode("ascii")
+            print(f"[{run_id}] {safe_msg}", flush=True)
+        except Exception:
+            pass
+
     if run_id in active_runs:
         active_runs[run_id]["logs"].append(message)
     if run_id in ws_connections:
@@ -28,6 +38,9 @@ async def broadcast_log(run_id: str, message: str):
                 await ws.send_json({"run_id": run_id, "message": message})
             except Exception:
                 pass
+
+from backend.services.ai_planner import AIPlanner
+ai_planner = AIPlanner()
 
 @router.get("/health")
 def health():
@@ -63,23 +76,40 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
         active_runs[run_id]["framework"] = stack_info.framework
         await broadcast_log(run_id, f"Tespit edilen çatı: {stack_info.framework} (Standart Mod: {stack_info.is_standard})")
 
-        if not stack_info.is_standard:
-            await broadcast_log(run_id, "⚠️ UYARI: Bu proje standart şablonlarımız dışında. AI Derin Modu gerekli.")
-            active_runs[run_id]["status"] = StatusEnum.AWAITING_HITL
-            return
+        # If not standard or user explicitly requested AI Deep Mode, trigger AI Planner
+        if not stack_info.is_standard or request.mode == ExecutionMode.DEEP_AI:
+            await broadcast_log(run_id, "🧠 [AI Derin Mod] Otonom analiz motoru devreye girdi...")
+            ai_stack_info, decision_logs = ai_planner.plan(target_dir, port=request.port)
+            for dlog in decision_logs:
+                await broadcast_log(run_id, dlog)
+            stack_info = ai_stack_info
+            active_runs[run_id]["framework"] = stack_info.framework
 
-        await broadcast_log(run_id, "--> Adım 3: Sanal ortam hazırlanıyor ve bağımlılıklar yükleniyor...")
-        active_runs[run_id]["status"] = StatusEnum.INSTALLING
-        python_bin = env_manager.create_venv(target_dir, log_cb=log)
+        python_bin = env_manager.get_python_bin(target_dir)
+
+        # Step 3: Dependencies installation (if needed)
         if stack_info.install_command:
+            await broadcast_log(run_id, "--> Adım 3: Sanal ortam hazırlanıyor ve bağımlılıklar yükleniyor...")
+            active_runs[run_id]["status"] = StatusEnum.INSTALLING
+            python_bin = env_manager.create_venv(target_dir, log_cb=log)
+            await broadcast_log(run_id, f"💻 $ {stack_info.install_command}")
             success = env_manager.install_dependencies(target_dir, stack_info.install_command, log_cb=log)
             if not success:
                 await broadcast_log(run_id, "❌ HATA: Bağımlılık kurulumu başarısız oldu!")
                 active_runs[run_id]["status"] = StatusEnum.FAILED
                 return
+        else:
+            await broadcast_log(run_id, "--> Adım 3: Bağımlılık kurulumu atlanıyor (Gereksinim yok).")
 
+        # Step 4: Launching application
         await broadcast_log(run_id, f"--> Adım 4: Uygulama başlatılıyor (Port: {request.port})...")
         active_runs[run_id]["status"] = StatusEnum.RUNNING
+
+        if not stack_info.run_command:
+            await broadcast_log(run_id, "❌ HATA: Çalıştırılabilir bir komut bulunamadı.")
+            active_runs[run_id]["status"] = StatusEnum.FAILED
+            return
+
         cmd = stack_info.run_command.split()
         if cmd[0] == "uvicorn":
             uvicorn_exe = target_dir / ".venv" / "Scripts" / "uvicorn.exe"
@@ -88,17 +118,22 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
             else:
                 cmd = [str(python_bin), "-m", "uvicorn"] + cmd[1:]
         elif cmd[0] == "python":
-            cmd[0] = str(python_bin)
+            if python_bin.exists():
+                cmd[0] = str(python_bin)
+            else:
+                import sys
+                cmd[0] = sys.executable
 
+        await broadcast_log(run_id, f"💻 $ {' '.join(cmd)}")
         process_runner.start(run_id, cmd, target_dir, log_cb=log)
 
         await broadcast_log(run_id, "--> Port sağlık kontrolü yapılıyor...")
-        healthy = await process_runner.check_health(request.port, timeout_seconds=8.0)
+        healthy = await process_runner.check_health(request.port, timeout_seconds=6.0)
         active_runs[run_id]["is_healthy"] = healthy
         if healthy:
             await broadcast_log(run_id, f"✅ Başarılı! Uygulama http://localhost:{request.port} üzerinde canlı yayında.")
         else:
-            await broadcast_log(run_id, "⚠️ Port henüz yanıt vermedi veya uygulama sessiz başlatıldı.")
+            await broadcast_log(run_id, f"ℹ️ Süreç başlatıldı (PID aktif). Port yanıtı bekleniyor: http://localhost:{request.port}")
 
     except Exception as e:
         await broadcast_log(run_id, f"❌ Kritik Hata: {str(e)}")

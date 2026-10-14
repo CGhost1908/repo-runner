@@ -1,7 +1,14 @@
+import sys
 from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from backend.api.routes import router, ws_connections
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 app = FastAPI(title="Repo Runner Engine")
 app.include_router(router)

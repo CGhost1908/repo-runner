@@ -32,3 +32,13 @@ def test_detect_unknown_project(tmp_path):
 
     assert info.is_standard is False
     assert info.framework == "unknown"
+
+def test_detect_static_html_project(tmp_path):
+    (tmp_path / "index.html").write_text("<h1>Hello World</h1>", encoding="utf-8")
+
+    detector = StackDetector()
+    info = detector.analyze(tmp_path, port=8000)
+
+    assert info.is_standard is True
+    assert info.framework == "static_html"
+    assert "http.server 8000" in info.run_command
