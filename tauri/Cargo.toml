@@ -5,25 +5,18 @@ description = "A Tauri App"
 authors = ["you"]
 license = ""
 repository = ""
-edition = "2024"
-rust-version = "1.90"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition = "2021"
 
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = {  path = "..\\tauri\\crates/tauri-build" }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = {  path = "..\\tauri\\crates/tauri" }
+tauri = { version = "2", features = [] }
 tauri-plugin-log = "2"
-[patch.crates-io]
-tauri = {  path = "..\\tauri\\crates/tauri" }
-tauri-utils = {  path = "..\\tauri\\crates/tauri-utils" }
-tauri-plugin = {  path = "..\\tauri\\crates/tauri-plugin" }
