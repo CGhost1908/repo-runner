@@ -41,7 +41,6 @@ export class ErrorBoundary extends React.Component {
             textAlign: "center",
             boxShadow: "0 10px 30px rgba(0,0,0,0.5)"
           }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
             <h2 style={{ fontSize: "22px", fontWeight: "700", marginBottom: "8px" }}>
               Something Went Wrong
             </h2>
@@ -69,7 +68,7 @@ export class ErrorBoundary extends React.Component {
                 className="btn btn-primary"
                 onClick={this.handleReset}
               >
-                <span>🏠</span> Return to Home
+                Return to Home
               </button>
               <button
                 className="btn btn-secondary"

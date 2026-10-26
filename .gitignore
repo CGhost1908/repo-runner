@@ -1,15 +1,51 @@
+# Python & Virtual Environments
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.coverage
+htmlcov/
 .venv/
 env/
 venv/
 *.egg-info/
 dist/
 build/
-.repo-runner/
 
+# Repo Runner Workspaces & Runtime Data
+.repo-runner/
+workspaces/
+.repo-runner-meta.json
+
+# Node / Frontend / Tauri Build Artifacts
 node_modules/
-tauri/target/
+frontend/node_modules/
 frontend/dist/
+tauri/target/
+*.log
+npm-debug.log*
+
+# Research Papers, Articles & Knowledge Base (Ignored)
+papers/
+rag_knowledge_base/
+docs/
+*.pdf
+*.docx
+*.xlsx
+*.bib
+
+# Local Agent / IDE / MCP Configs
+.agents/
+.claude/
+.gemini/
+.vscode/
+.idea/
+.mcp.json
+graphify-out/
+
+# Environment & OS Files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

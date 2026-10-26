@@ -3,12 +3,23 @@ import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar.jsx";
 import { Topbar } from "./Topbar.jsx";
 import { UserProfileModal } from "./UserProfileModal.jsx";
+import { ActiveInstancesModal } from "./ActiveInstancesModal.jsx";
 import { ErrorBoundary } from "./ErrorBoundary.jsx";
 
 export function Layout({ toast, isLive }) {
   const [projectCount, setProjectCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isPortsModalOpen, setIsPortsModalOpen] = useState(false);
+  const [portsData, setPortsData] = useState({
+    ports: [],
+    running_repos: [],
+    running_repos_count: 0,
+    active_ports_count: 0,
+    suggested_free_port: 8000
+  });
+  const [freeingPortNum, setFreeingPortNum] = useState(null);
+
   const [userProfile, setUserProfile] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("repo_runner_profile") || '{"name":"Eren","role":"Project Administrator"}');
@@ -32,9 +43,41 @@ export function Layout({ toast, isLive }) {
     }
   };
 
+  const fetchPorts = async () => {
+    try {
+      const res = await fetch("/api/ports");
+      if (res.ok) {
+        const data = await res.json();
+        setPortsData(data);
+      }
+    } catch (_) {}
+  };
+
+  const handleGlobalFreePort = async (portNum) => {
+    setFreeingPortNum(portNum);
+    try {
+      const res = await fetch(`/api/ports/free/${portNum}`, { method: "POST" });
+      if (res.ok) {
+        toast.show(`Port ${portNum} released successfully.`);
+        await Promise.all([fetchPorts(), fetchStats()]);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.show(err.detail || `Could not free port ${portNum}.`);
+      }
+    } catch (_) {
+      toast.show(`Failed to free port ${portNum}.`);
+    } finally {
+      setFreeingPortNum(null);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 5000);
+    fetchPorts();
+    const interval = setInterval(() => {
+      fetchStats();
+      fetchPorts();
+    }, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -57,21 +100,49 @@ export function Layout({ toast, isLive }) {
     <div className="app-shell">
       <Sidebar
         projectCount={projectCount}
-        isLive={isLive}
+        activePortsCount={portsData.active_ports_count || 0}
+        runningReposCount={portsData.running_repos_count || 0}
+        isLive={isLive || (portsData.running_repos_count || 0) > 0}
         userProfile={userProfile}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onLogout={handleLogout}
       />
 
       <div className="main-wrapper">
-        <Topbar isOnline={isOnline} />
+        <Topbar
+          isOnline={isOnline}
+          portsData={portsData}
+          onOpenPortsModal={() => {
+            fetchPorts();
+            setIsPortsModalOpen(true);
+          }}
+        />
 
         <main className="content-container">
           <ErrorBoundary>
-            <Outlet context={{ toast, onRefreshStats: fetchStats }} />
+            <Outlet
+              context={{
+                toast,
+                onRefreshStats: fetchStats,
+                portsData,
+                onRefreshPorts: fetchPorts,
+                onFreePort: handleGlobalFreePort,
+                freeingPortNum,
+                onOpenPortsModal: () => setIsPortsModalOpen(true)
+              }}
+            />
           </ErrorBoundary>
         </main>
       </div>
+
+      <ActiveInstancesModal
+        isOpen={isPortsModalOpen}
+        onClose={() => setIsPortsModalOpen(false)}
+        portsData={portsData}
+        onRefresh={fetchPorts}
+        onFreePort={handleGlobalFreePort}
+        freeingPortNum={freeingPortNum}
+      />
 
       <UserProfileModal
         isOpen={isProfileModalOpen}

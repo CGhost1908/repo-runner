@@ -3,8 +3,8 @@ from backend.models import RunRequest, RunStatus, LogMessage
 
 def test_settings_default_values():
     settings = get_settings()
-    assert settings.default_backend_port == 8000
-    assert settings.default_frontend_port == 3000
+    assert settings.default_backend_port == 7001
+    assert settings.default_frontend_port == 7000
     assert settings.workspace_dir.exists()
 
 def test_run_request_validation():

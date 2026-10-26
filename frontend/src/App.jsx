@@ -5,6 +5,7 @@ import { Home } from "./pages/Home.jsx";
 import { Runner } from "./pages/Runner.jsx";
 import { Projects } from "./pages/Projects.jsx";
 import { ProjectDetail } from "./pages/ProjectDetail.jsx";
+import { ActivePorts } from "./pages/ActivePorts.jsx";
 import { Settings } from "./pages/Settings.jsx";
 import { NotFound } from "./pages/NotFound.jsx";
 
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="runner" element={<Runner setIsLive={setIsLive} />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
+          <Route path="ports" element={<ActivePorts />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>

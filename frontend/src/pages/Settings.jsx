@@ -75,7 +75,7 @@ export function Settings() {
           <p className="section-subtitle">Manage model keys, port pools, and isolation preferences</p>
         </div>
         <button className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
-          💾 {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
 
@@ -84,7 +84,7 @@ export function Settings() {
           {/* AI & LLM Settings Card */}
           <div className="settings-group-card">
             <h3 className="settings-group-title">
-              <span>🤖</span> AI & LLM Model
+              AI & LLM Model
             </h3>
             <p className="settings-group-desc">LLM engine used for deep mode analysis and runtime troubleshooting</p>
 
@@ -141,7 +141,7 @@ export function Settings() {
           {/* Networking & Port Settings Card */}
           <div className="settings-group-card">
             <h3 className="settings-group-title">
-              <span>🌐</span> Port & Network Configuration
+              Port & Network Configuration
             </h3>
             <p className="settings-group-desc">Ports injected and monitored during application execution</p>
 

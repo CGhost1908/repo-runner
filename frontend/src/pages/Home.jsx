@@ -57,10 +57,10 @@ export function Home() {
           </p>
           <div className="hero-actions">
             <button className="btn btn-primary" onClick={() => navigate("/runner")}>
-              <span>🚀</span> Go to Repo Runner
+              Go to Repo Runner
             </button>
             <button className="btn btn-outline" onClick={() => navigate("/projects")}>
-              <span>📂</span> View Saved Projects
+              View My Repos
             </button>
           </div>
         </div>
@@ -97,7 +97,7 @@ export function Home() {
 
         <div className="stat-card">
           <div className="stat-header">
-            <span className="stat-title">Saved Projects</span>
+            <span className="stat-title">My Repos</span>
             <span className="stat-icon-wrapper icon-amber">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
@@ -105,7 +105,7 @@ export function Home() {
             </span>
           </div>
           <div className="stat-value">{stats.saved_projects_count}</div>
-          <div className="stat-footer">Ready in workspace</div>
+          <div className="stat-footer">Executed repositories</div>
         </div>
 
         <div className="stat-card">
@@ -127,28 +127,38 @@ export function Home() {
         {/* Recent Projects Column */}
         <div className="card-box">
           <div className="card-box-header">
-            <h3 className="card-box-title">Recent Projects & Workspace</h3>
+            <h3 className="card-box-title">My Repos (Recently Run)</h3>
             <button className="btn-link" onClick={loadData}>Refresh</button>
           </div>
           <div className="recent-projects-list">
             {recentProjects.length === 0 ? (
               <div className="empty-state">
-                <p className="empty-text">No downloaded projects yet. Start from the Runner tab.</p>
+                <p className="empty-text">No executed repositories yet. Start from the Runner tab.</p>
               </div>
             ) : (
               recentProjects.map((p) => (
                 <div key={p.id} className="project-item-row">
                   <div className="item-main" style={{ cursor: "pointer" }} onClick={() => navigate(`/projects/${encodeURIComponent(p.id)}`)}>
-                    <span className="item-name">{p.name}</span>
-                    <span className="item-desc">{p.path}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span className="item-name">{p.name}</span>
+                      {p.last_run_status === "SUCCESS" && (
+                        <span className="status-tag status-tag-success" style={{ padding: "1px 6px", fontSize: "0.68rem" }}>Success</span>
+                      )}
+                      {p.last_run_status === "FAILED" && (
+                        <span className="status-tag status-tag-failed" style={{ padding: "1px 6px", fontSize: "0.68rem" }}>Failed</span>
+                      )}
+                    </div>
+                    <span className="item-desc">
+                      Owner: {p.owner || "Local"} · {p.path}
+                    </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span className="item-badge">{p.framework.toUpperCase()}</span>
+                    <span className="item-badge">{(p.framework || "GENERIC").toUpperCase()}</span>
                     <button
                       className="btn-secondary-sm"
                       onClick={() => handleLaunchProject(p.path)}
                     >
-                      Run
+                      Open
                     </button>
                   </div>
                 </div>

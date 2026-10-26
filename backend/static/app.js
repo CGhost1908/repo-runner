@@ -257,6 +257,23 @@ const openBrowserLink = document.getElementById("openBrowserLink");
 const previewPortLabel = document.getElementById("previewPortLabel");
 const navLiveIndicator = document.getElementById("navLiveIndicator");
 
+openBrowserLink?.addEventListener("click", async (e) => {
+  e.preventDefault();
+  const url = openBrowserLink.getAttribute("data-url") || openBrowserLink.href;
+  if (url && url !== "#") {
+    try {
+      await fetch("/api/open-browser", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+      showToast("Opening in browser...");
+    } catch (_) {
+      window.open(url, "_blank");
+    }
+  }
+});
+
 pasteRepoBtn?.addEventListener("click", async () => {
   try {
     const text = await navigator.clipboard.readText();
@@ -286,7 +303,10 @@ function appendTerminalLine(text) {
 
   line.textContent = text;
   terminalLog.appendChild(line);
-  terminalLog.scrollTop = terminalLog.scrollHeight;
+  if (!isUserScrolledUp) {
+    isProgrammaticScroll = true;
+    terminalLog.scrollTop = terminalLog.scrollHeight;
+  }
 }
 
 document.getElementById("clearTerminalBtn")?.addEventListener("click", () => {
@@ -397,6 +417,23 @@ stopBtn?.addEventListener("click", async () => {
   loadSystemStats();
 });
 
+let isUserScrolledUp = false;
+let isProgrammaticScroll = false;
+
+terminalLog?.addEventListener("scroll", () => {
+  if (isProgrammaticScroll) {
+    isProgrammaticScroll = false;
+    return;
+  }
+  const dist = terminalLog.scrollHeight - terminalLog.scrollTop - terminalLog.clientHeight;
+  isUserScrolledUp = dist > 80;
+});
+
+terminalLog?.addEventListener("wheel", (e) => {
+  if (e.deltaY < 0) {
+    isUserScrolledUp = true;
+  }
+});
 let lastAppendedLog = "";
 function appendTerminalLine(text) {
   if (!terminalLog || !text) return;
@@ -421,7 +458,10 @@ function appendTerminalLine(text) {
 
   line.textContent = text;
   terminalLog.appendChild(line);
-  terminalLog.scrollTop = terminalLog.scrollHeight;
+  if (!isUserScrolledUp) {
+    isProgrammaticScroll = true;
+    terminalLog.scrollTop = terminalLog.scrollHeight;
+  }
 }
 
 let activeLogPoller = null;
@@ -509,7 +549,7 @@ function connectRunnerWs(runId, port) {
 function showPreviewApp(port) {
   const url = `http://localhost:${port}`;
   if (openBrowserLink) {
-    openBrowserLink.href = url;
+    openBrowserLink.setAttribute('data-url', url);
     openBrowserLink.classList.remove("hidden");
   }
   if (previewPortLabel) {

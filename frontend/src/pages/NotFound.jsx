@@ -22,8 +22,7 @@ export function NotFound() {
         textAlign: "center",
         boxShadow: "var(--shadow-card)"
       }}>
-        <div style={{ fontSize: "56px", marginBottom: "16px" }}>🔍</div>
-        <h1 style={{ fontSize: "36px", fontWeight: "800", color: "var(--accent-primary)", marginBottom: "8px" }}>
+        <h1 style={{ fontSize: "48px", fontWeight: "800", color: "var(--accent-primary)", marginBottom: "8px" }}>
           404
         </h1>
         <h2 style={{ fontSize: "20px", fontWeight: "600", marginBottom: "12px" }}>
@@ -37,7 +36,7 @@ export function NotFound() {
             className="btn btn-primary"
             onClick={() => navigate("/")}
           >
-            <span>🏠</span> Go to Home
+            Go to Home
           </button>
           <button
             className="btn btn-secondary"
