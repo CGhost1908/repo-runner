@@ -98,20 +98,39 @@ def open_browser_get(url: str):
 def _sync_env_vars_to_files(dirs: list[Path], user_env: dict[str, str], log_cb=None) -> dict[str, str]:
     """
     Writes non-empty user-supplied environment variables into .env files in the target directories
-    and returns the cleaned key-value dictionary for process injection.
+    (seeding from .env.example if .env does not exist yet) and returns the cleaned key-value dictionary.
     """
+    if log_cb:
+        log_cb("--> Synchronizing .env & API key configuration...")
+
     clean_env = {
         k.strip(): str(v).strip()
         for k, v in (user_env or {}).items()
         if k and k.strip() and v is not None and str(v).strip() != ""
     }
-    if not clean_env:
-        return {}
 
     for d in dict.fromkeys(dirs):
         if not d or not d.exists():
             continue
         env_path = d / ".env"
+        if not env_path.exists():
+            for tpl_name in (".env.example", ".env.sample", ".env.template"):
+                tpl_path = d / tpl_name
+                if tpl_path.exists():
+                    try:
+                        env_path.write_text(
+                            tpl_path.read_text(encoding="utf-8", errors="ignore"),
+                            encoding="utf-8"
+                        )
+                        if log_cb:
+                            log_cb(f"[ENV] Provisioned {env_path.name} from {tpl_name} in '{d.name}'")
+                    except Exception:
+                        pass
+                    break
+
+        if not clean_env:
+            continue
+
         existing_lines: list[str] = []
         seen_keys: set[str] = set()
         if env_path.exists():
@@ -141,7 +160,10 @@ def _sync_env_vars_to_files(dirs: list[Path], user_env: dict[str, str], log_cb=N
             pass
 
     if log_cb:
-        log_cb(f"[ENV] Injected {len(clean_env)} environment variable(s): {', '.join(clean_env.keys())}")
+        if clean_env:
+            log_cb(f"[ENV] Injected {len(clean_env)} configured variable(s): {', '.join(clean_env.keys())}")
+        else:
+            log_cb("[ENV] Optional API keys skipped — launching with default environment settings.")
     return clean_env
 
 

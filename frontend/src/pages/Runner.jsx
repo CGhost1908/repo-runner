@@ -276,8 +276,9 @@ export function Runner({ setIsLive }) {
     setScanStep(1);
     setStep("detecting");
 
-    const t1 = setTimeout(() => setScanStep(2), 450);
-    const t2 = setTimeout(() => setScanStep(3), 900);
+    const t1 = setTimeout(() => setScanStep(2), 350);
+    const t2 = setTimeout(() => setScanStep(3), 700);
+    const t3 = setTimeout(() => setScanStep(4), 1050);
 
     try {
       const [res] = await Promise.all([
@@ -290,11 +291,12 @@ export function Runner({ setIsLive }) {
             port: targetPort
           })
         }),
-        new Promise((resolve) => setTimeout(resolve, 1150))
+        new Promise((resolve) => setTimeout(resolve, 1350))
       ]);
 
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -338,6 +340,7 @@ export function Runner({ setIsLive }) {
     } catch (err) {
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
       setAnalyzeError(err.message || "Could not analyze repository.");
       setStep("source");
     }
@@ -941,8 +944,12 @@ export function Runner({ setIsLive }) {
                   <span>Step 2: Inspecting Backend & Frontend dependency manifests</span>
                 </div>
                 <div className={`scanning-step-item ${scanStep >= 3 ? (scanStep === 3 ? "active" : "done") : ""}`}>
-                  {scanStep === 3 ? <div className="scanning-spinner" /> : "·"}
+                  {scanStep > 3 ? "✓" : scanStep === 3 ? <div className="scanning-spinner" /> : "·"}
                   <span>Step 3: Synthesizing per-service launch commands & port bindings</span>
+                </div>
+                <div className={`scanning-step-item ${scanStep >= 4 ? (scanStep === 4 ? "active" : "done") : ""}`}>
+                  {scanStep === 4 ? <div className="scanning-spinner" /> : "·"}
+                  <span>Step 4: Scanning .env templates & source code for unfilled API keys</span>
                 </div>
               </div>
             </div>
