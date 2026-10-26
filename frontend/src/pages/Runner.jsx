@@ -1497,10 +1497,40 @@ export function Runner({ setIsLive }) {
                 </button>
               </div>
 
-              {(status === "processing" || status === "running") && (
+              {(status === "processing" || status === "running") ? (
                 <button type="button" className="btn btn-danger btn-sm" onClick={handleStop}>
                   Stop Process
                 </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() =>
+                      startExecution({
+                        overrideServices: runningServices.length > 0 ? runningServices : null
+                      })
+                    }
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>Run Again</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      if (blueprint) {
+                        setStep("blueprint");
+                      } else {
+                        handleAnalyzeRepo(null, repoInput);
+                      }
+                    }}
+                  >
+                    Configure Blueprint
+                  </button>
+                </>
               )}
 
               <button
