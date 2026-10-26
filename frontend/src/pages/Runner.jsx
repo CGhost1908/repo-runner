@@ -58,6 +58,9 @@ export function Runner({ setIsLive }) {
   const [services, setServices] = useState([]);
   const [servicePortStatuses, setServicePortStatuses] = useState({});
   const [execEnv, setExecEnv] = useState("venv");
+  const [envVars, setEnvVars] = useState([]);
+  const [showDefaultEnvVars, setShowDefaultEnvVars] = useState(false);
+  const [revealedSecrets, setRevealedSecrets] = useState({});
 
   // Step 3 (Live Runtime) State
   const [currentRunId, setCurrentRunId] = useState(null);
@@ -224,6 +227,36 @@ export function Runner({ setIsLive }) {
     setServices((prev) => prev.filter((s) => s.id !== svcId));
   };
 
+  // Environment Variable / API Key helpers for Step 2
+  const updateEnvVar = (index, field, val) => {
+    setEnvVars((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, [field]: val } : item))
+    );
+  };
+
+  const handleAddCustomEnvVar = () => {
+    setEnvVars((prev) => [
+      {
+        key: "",
+        value: "",
+        default_value: "",
+        is_secret: true,
+        is_empty: true,
+        source: "custom",
+        is_custom: true
+      },
+      ...prev
+    ]);
+  };
+
+  const handleRemoveCustomEnvVar = (index) => {
+    setEnvVars((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const toggleSecretVisibility = (keyOrIdx) => {
+    setRevealedSecrets((prev) => ({ ...prev, [keyOrIdx]: !prev[keyOrIdx] }));
+  };
+
   // Step 1 -> Step 2: Run Visual Stack Detection & Blueprint Analysis
   const handleAnalyzeRepo = async (e, customPath = null, overridePort = null) => {
     if (e) e.preventDefault();
@@ -295,6 +328,9 @@ export function Runner({ setIsLive }) {
       }
 
       setServices(initialServices);
+      setEnvVars(data.env_vars || []);
+      setShowDefaultEnvVars(false);
+      setRevealedSecrets({});
       setStep("blueprint");
       initialServices.forEach((s) => {
         if (s.port) checkSinglePort(s.port);
@@ -337,6 +373,7 @@ export function Runner({ setIsLive }) {
     await startExecution({
       targetValue: repoItem.path,
       targetPort: savedPort,
+      overrideEnvVars: repoItem.saved_recipe?.env_vars || null,
       overrideServices:
         savedServices.length > 0
           ? savedServices
@@ -360,7 +397,8 @@ export function Runner({ setIsLive }) {
   const startExecution = async ({
     targetValue = null,
     targetPort = null,
-    overrideServices = null
+    overrideServices = null,
+    overrideEnvVars = null
   } = {}) => {
     const value = (targetValue || repoInput).trim();
     const activeServiceList = (overrideServices || services).filter((s) => s.enabled);
@@ -409,6 +447,24 @@ export function Runner({ setIsLive }) {
     const primarySvc = activeServiceList[0];
     const previewPort = frontendSvc ? parseInt(frontendSvc.port, 10) : parseInt(primarySvc.port, 10) || targetPort || 8000;
 
+    // Collect filled-in environment variables / API keys
+    const envVarsPayload = {};
+    if (overrideEnvVars && typeof overrideEnvVars === "object") {
+      Object.entries(overrideEnvVars).forEach(([k, v]) => {
+        if (k && v !== undefined && v !== null && String(v).trim() !== "") {
+          envVarsPayload[String(k).trim()] = String(v).trim();
+        }
+      });
+    } else {
+      envVars.forEach((item) => {
+        const k = (item.key || "").trim();
+        const v = (item.value || "").trim();
+        if (k && v !== "") {
+          envVarsPayload[k] = v;
+        }
+      });
+    }
+
     const payload = {
       repo_url: isUrl ? value : null,
       local_path: !isUrl ? value : null,
@@ -420,7 +476,8 @@ export function Runner({ setIsLive }) {
       services: activeServiceList.map((s) => ({
         ...s,
         port: parseInt(s.port, 10) || 8000
-      }))
+      })),
+      env_vars: envVarsPayload
     };
 
     setStep("runtime");
@@ -1345,6 +1402,315 @@ export function Runner({ setIsLive }) {
                   </div>
                 );
               })}
+            </div>
+
+            {/* ================================================================= */}
+            {/* DETECTED API KEYS & ENVIRONMENT VARIABLES (OPTIONAL)              */}
+            {/* ================================================================= */}
+            <div
+              style={{
+                borderTop: "1px solid var(--border-subtle)",
+                paddingTop: "14px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px"
+              }}
+            >
+              {(() => {
+                const indexedVars = envVars.map((item, idx) => ({ ...item, _idx: idx }));
+                const primaryVars = indexedVars.filter(
+                  (v) => v.is_empty || v.is_custom || !v.default_value
+                );
+                const defaultVars = indexedVars.filter(
+                  (v) => !v.is_empty && !v.is_custom && Boolean(v.default_value)
+                );
+                const unfilledCount = primaryVars.filter(
+                  (v) => !(v.value && v.value.trim())
+                ).length;
+                const visibleVars = showDefaultEnvVars
+                  ? [...primaryVars, ...defaultVars]
+                  : primaryVars;
+
+                return (
+                  <>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "10px"
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            flexWrap: "wrap"
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontFamily: "var(--font-mono)",
+                              fontSize: "0.76rem",
+                              fontWeight: 700,
+                              color: "var(--text-main)",
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase"
+                            }}
+                          >
+                            // Detected API Keys & Environment Variables (Optional)
+                          </span>
+                          {envVars.length > 0 && (
+                            <span
+                              style={{
+                                fontFamily: "var(--font-mono)",
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                padding: "2px 8px",
+                                borderRadius: "4px",
+                                background:
+                                  unfilledCount > 0
+                                    ? "rgba(245, 158, 11, 0.14)"
+                                    : "rgba(0, 229, 153, 0.14)",
+                                color: unfilledCount > 0 ? "#fbbf24" : "var(--accent-primary)",
+                                border:
+                                  unfilledCount > 0
+                                    ? "1px solid rgba(245, 158, 11, 0.35)"
+                                    : "1px solid rgba(0, 229, 153, 0.35)"
+                              }}
+                            >
+                              {unfilledCount > 0
+                                ? `${unfilledCount} UNFILLED KEY${unfilledCount > 1 ? "S" : ""} DETECTED`
+                                : "ALL KEYS CONFIGURED"}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                          Automatically scanned from <code>.env.example</code>, <code>config.py</code>,{" "}
+                          <code>os.getenv()</code>, and <code>import.meta.env</code>. Fill in any keys you wish to inject into <code>.env</code> and the runtime environment.
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        {defaultVars.length > 0 && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setShowDefaultEnvVars((prev) => !prev)}
+                          >
+                            {showDefaultEnvVars
+                              ? `Hide ${defaultVars.length} Default Variable${defaultVars.length > 1 ? "s" : ""}`
+                              : `Show ${defaultVars.length} Default Variable${defaultVars.length > 1 ? "s" : ""}`}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ borderColor: "rgba(245, 158, 11, 0.4)", color: "#fbbf24" }}
+                          onClick={handleAddCustomEnvVar}
+                        >
+                          + Add Custom Env Var
+                        </button>
+                      </div>
+                    </div>
+
+                    {visibleVars.length === 0 ? (
+                      <div
+                        style={{
+                          background: "var(--bg-card-alt)",
+                          border: "1px dashed var(--border-subtle)",
+                          borderRadius: "var(--radius-sm)",
+                          padding: "12px 16px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "12px",
+                          flexWrap: "wrap"
+                        }}
+                      >
+                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                          {envVars.length === 0
+                            ? "No empty API keys or required environment variables were detected in this repository."
+                            : `All ${defaultVars.length} detected environment variables already have default values configured.`}
+                        </span>
+                        {defaultVars.length > 0 && !showDefaultEnvVars && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setShowDefaultEnvVars(true)}
+                          >
+                            Inspect Default Variables ({defaultVars.length})
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px"
+                        }}
+                      >
+                        {visibleVars.map((item) => {
+                          const idx = item._idx;
+                          const hasUserValue = Boolean(item.value && item.value.trim());
+                          const isRevealed = Boolean(revealedSecrets[idx]);
+
+                          return (
+                            <div
+                              key={`${item.key || "custom"}_${idx}`}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "minmax(220px, 1fr) 1.5fr auto",
+                                gap: "12px",
+                                alignItems: "center",
+                                background: "var(--bg-card-alt)",
+                                border: hasUserValue
+                                  ? "1px solid rgba(0, 229, 153, 0.35)"
+                                  : item.is_empty
+                                  ? "1px solid rgba(245, 158, 11, 0.32)"
+                                  : "1px solid var(--border-subtle)",
+                                borderRadius: "var(--radius-sm)",
+                                padding: "10px 14px"
+                              }}
+                            >
+                              {/* Key Name & Source Metadata */}
+                              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                                {item.is_custom ? (
+                                  <input
+                                    type="text"
+                                    className="text-input"
+                                    style={{
+                                      padding: "5px 9px",
+                                      fontSize: "0.8rem",
+                                      fontFamily: "var(--font-mono)",
+                                      fontWeight: 700
+                                    }}
+                                    placeholder="ENV_VAR_NAME (e.g. OPENAI_API_KEY)"
+                                    value={item.key}
+                                    onChange={(e) =>
+                                      updateEnvVar(idx, "key", e.target.value.toUpperCase().replace(/\s+/g, "_"))
+                                    }
+                                  />
+                                ) : (
+                                  <div style={{ display: "flex", alignItems: "center", gap: "7px", flexWrap: "wrap" }}>
+                                    <span
+                                      style={{
+                                        fontFamily: "var(--font-mono)",
+                                        fontSize: "0.82rem",
+                                        fontWeight: 700,
+                                        color: "#fff"
+                                      }}
+                                    >
+                                      {item.key}
+                                    </span>
+                                    {item.is_secret && (
+                                      <span
+                                        style={{
+                                          fontFamily: "var(--font-mono)",
+                                          fontSize: "0.62rem",
+                                          fontWeight: 700,
+                                          padding: "1px 6px",
+                                          borderRadius: "3px",
+                                          background: "rgba(245, 158, 11, 0.14)",
+                                          color: "#fbbf24",
+                                          border: "1px solid rgba(245, 158, 11, 0.3)"
+                                        }}
+                                      >
+                                        API KEY / SECRET
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <div
+                                  style={{
+                                    fontFamily: "var(--font-mono)",
+                                    fontSize: "0.68rem",
+                                    color: "var(--text-dim)"
+                                  }}
+                                >
+                                  Source: {item.source || ".env"}
+                                </div>
+                              </div>
+
+                              {/* Value Input */}
+                              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                                <input
+                                  type={item.is_secret && !isRevealed ? "password" : "text"}
+                                  className="text-input"
+                                  style={{
+                                    padding: "7px 11px",
+                                    fontSize: "0.82rem",
+                                    fontFamily: "var(--font-mono)",
+                                    width: "100%"
+                                  }}
+                                  placeholder={
+                                    item.default_value
+                                      ? `Default: ${item.default_value}`
+                                      : `Optional — Enter ${item.key || "API key"} value...`
+                                  }
+                                  value={item.value || ""}
+                                  onChange={(e) => updateEnvVar(idx, "value", e.target.value)}
+                                />
+                              </div>
+
+                              {/* Right Status & Secret Toggle Controls */}
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span
+                                  style={{
+                                    fontFamily: "var(--font-mono)",
+                                    fontSize: "0.66rem",
+                                    fontWeight: 700,
+                                    color: hasUserValue
+                                      ? "var(--accent-primary)"
+                                      : item.default_value
+                                      ? "#38bdf8"
+                                      : "#fbbf24",
+                                    minWidth: "68px",
+                                    textAlign: "right"
+                                  }}
+                                >
+                                  {hasUserValue
+                                    ? "● FILLED"
+                                    : item.default_value
+                                    ? "● DEFAULT"
+                                    : "○ OPTIONAL"}
+                                </span>
+
+                                {item.is_secret && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ padding: "4px 8px", fontSize: "0.7rem" }}
+                                    onClick={() => toggleSecretVisibility(idx)}
+                                  >
+                                    {isRevealed ? "Hide" : "Show"}
+                                  </button>
+                                )}
+
+                                {item.is_custom && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-danger btn-sm"
+                                    style={{ padding: "4px 8px", fontSize: "0.7rem" }}
+                                    onClick={() => handleRemoveCustomEnvVar(idx)}
+                                    title="Remove Custom Variable"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Clean Step 2 Footer Actions */}

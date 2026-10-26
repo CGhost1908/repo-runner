@@ -21,6 +21,14 @@ class StatusEnum(str, Enum):
     STOPPED = "stopped"
     FAILED = "failed"
 
+class EnvVarItem(BaseModel):
+    key: str
+    value: str = ""
+    default_value: str = ""
+    is_secret: bool = False
+    is_empty: bool = True
+    source: str = ".env"
+
 class ServiceConfig(BaseModel):
     id: str = "backend"
     role: str = "backend"  # "backend" | "frontend" | "worker"
@@ -41,6 +49,7 @@ class RunRequest(BaseModel):
     custom_run_command: Optional[str] = None
     custom_install_command: Optional[str] = None
     services: Optional[list[ServiceConfig]] = None
+    env_vars: Optional[dict[str, str]] = None
 
 class DetectRequest(BaseModel):
     repo_url: Optional[str] = None
@@ -55,6 +64,7 @@ class SavedRecipe(BaseModel):
     entrypoint: Optional[str] = None
     is_standard: bool = True
     services: list[ServiceConfig] = Field(default_factory=list)
+    env_vars: dict[str, str] = Field(default_factory=dict)
 
 class DetectResponse(BaseModel):
     framework: str
@@ -71,6 +81,7 @@ class DetectResponse(BaseModel):
     last_run_status: Optional[str] = None
     saved_recipe: Optional[SavedRecipe] = None
     services: list[ServiceConfig] = Field(default_factory=list)
+    env_vars: list[EnvVarItem] = Field(default_factory=list)
 
 class HitlDecisionRequest(BaseModel):
     run_id: str

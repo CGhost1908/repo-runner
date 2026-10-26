@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from backend.models import (
     RunRequest, StatusEnum, ExecutionMode, OpenBrowserRequest,
-    DetectRequest, DetectResponse, SavedRecipe, ServiceConfig
+    DetectRequest, DetectResponse, SavedRecipe, ServiceConfig, EnvVarItem
 )
 from backend.config import get_settings
 from backend.services.repo_manager import RepoManager
@@ -95,6 +95,56 @@ def open_browser_endpoint(req: OpenBrowserRequest):
 def open_browser_get(url: str):
     return open_browser_endpoint(OpenBrowserRequest(url=url))
 
+def _sync_env_vars_to_files(dirs: list[Path], user_env: dict[str, str], log_cb=None) -> dict[str, str]:
+    """
+    Writes non-empty user-supplied environment variables into .env files in the target directories
+    and returns the cleaned key-value dictionary for process injection.
+    """
+    clean_env = {
+        k.strip(): str(v).strip()
+        for k, v in (user_env or {}).items()
+        if k and k.strip() and v is not None and str(v).strip() != ""
+    }
+    if not clean_env:
+        return {}
+
+    for d in dict.fromkeys(dirs):
+        if not d or not d.exists():
+            continue
+        env_path = d / ".env"
+        existing_lines: list[str] = []
+        seen_keys: set[str] = set()
+        if env_path.exists():
+            try:
+                existing_lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except Exception:
+                existing_lines = []
+
+        new_lines: list[str] = []
+        for line in existing_lines:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k_part = stripped.split("=", 1)[0].strip()
+                if k_part in clean_env:
+                    new_lines.append(f"{k_part}={clean_env[k_part]}")
+                    seen_keys.add(k_part)
+                    continue
+            new_lines.append(line)
+
+        for k, v in clean_env.items():
+            if k not in seen_keys:
+                new_lines.append(f"{k}={v}")
+
+        try:
+            env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+
+    if log_cb:
+        log_cb(f"[ENV] Injected {len(clean_env)} environment variable(s): {', '.join(clean_env.keys())}")
+    return clean_env
+
+
 @router.post("/detect", response_model=DetectResponse)
 async def detect_project_stack(req: DetectRequest):
     """
@@ -112,8 +162,8 @@ async def detect_project_stack(req: DetectRequest):
         target_dir, recipe, meta = cached_match
         fw = recipe.get("framework", "generic_python")
         saved_services = recipe.get("services") or []
+        fresh_info = detector.analyze(target_dir, port=recipe.get("port", req.port))
         if not saved_services:
-            fresh_info = detector.analyze(target_dir, port=recipe.get("port", req.port))
             saved_services = getattr(fresh_info, "services", []) or [
                 {
                     "id": "backend",
@@ -127,6 +177,13 @@ async def detect_project_stack(req: DetectRequest):
                     "enabled": True
                 }
             ]
+        raw_env_vars = getattr(fresh_info, "env_vars", []) or []
+        saved_env_map = recipe.get("env_vars") or {}
+        for item in raw_env_vars:
+            if item["key"] in saved_env_map and saved_env_map[item["key"]]:
+                item["value"] = saved_env_map[item["key"]]
+                item["is_empty"] = False
+
         return DetectResponse(
             framework=fw,
             is_standard=recipe.get("is_standard", True),
@@ -134,14 +191,15 @@ async def detect_project_stack(req: DetectRequest):
             run_command=recipe.get("run_command"),
             has_dockerfile=(target_dir / "Dockerfile").exists(),
             entrypoint=recipe.get("entrypoint"),
-            detected_files=[],
+            detected_files=getattr(fresh_info, "detected_files", []),
             project_name=meta.get("repo_name", target_dir.name),
             path=target_dir.as_posix(),
             repo_owner=meta.get("repo_owner"),
             cached=True,
             last_run_status="SUCCESS",
             saved_recipe=SavedRecipe(**{**recipe, "services": saved_services}),
-            services=[ServiceConfig(**s) for s in saved_services]
+            services=[ServiceConfig(**s) for s in saved_services],
+            env_vars=[EnvVarItem(**e) for e in raw_env_vars]
         )
 
     # 2. Kayıtlı reçete yoksa repoyu hazırla ve StackDetector ile analiz et
@@ -155,6 +213,7 @@ async def detect_project_stack(req: DetectRequest):
     stack_info = detector.analyze(target_dir, port=req.port)
     meta = ProjectMetaManager.get_meta(target_dir)
     raw_services = getattr(stack_info, "services", []) or []
+    raw_env_vars = getattr(stack_info, "env_vars", []) or []
 
     return DetectResponse(
         framework=stack_info.framework,
@@ -169,7 +228,8 @@ async def detect_project_stack(req: DetectRequest):
         repo_owner=meta.get("repo_owner"),
         cached=False,
         last_run_status=meta.get("last_run_status", "NEVER_RUN"),
-        services=[ServiceConfig(**s) for s in raw_services]
+        services=[ServiceConfig(**s) for s in raw_services],
+        env_vars=[EnvVarItem(**e) for e in raw_env_vars]
     )
 
 @router.post("/run")
@@ -273,6 +333,9 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
             if active_runs.get(run_id, {}).get("status") == StatusEnum.STOPPED:
                 return
 
+            all_svc_dirs = [target_dir] + [(target_dir / (s.working_dir or ".")).resolve() for s in enabled_services]
+            injected_env = _sync_env_vars_to_files(all_svc_dirs, request.env_vars or {}, log_cb=log)
+
             active_runs[run_id]["status"] = StatusEnum.RUNNING
             spawned_procs = []
             import os
@@ -305,12 +368,15 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
                 if existing_py_path:
                     py_paths.append(existing_py_path)
 
+                svc_extra_env = dict(injected_env)
+                svc_extra_env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(py_paths))
+
                 proc = process_runner.start(
                     proc_key,
                     cmd,
                     svc_dir,
                     log_cb=lambda m, pfx=prefix: log(f"{pfx}{m}"),
-                    extra_env={"PYTHONPATH": os.pathsep.join(dict.fromkeys(py_paths))}
+                    extra_env=svc_extra_env
                 )
                 spawned_procs.append((svc, proc, proc_key))
 
@@ -340,7 +406,8 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
                         "port": primary_port,
                         "entrypoint": stack_info.entrypoint,
                         "is_standard": stack_info.is_standard,
-                        "services": [s.model_dump() for s in enabled_services]
+                        "services": [s.model_dump() for s in enabled_services],
+                        "env_vars": injected_env
                     },
                     repo_url=request.repo_url
                 )
@@ -429,17 +496,20 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
             cmd[0] = py_exec
 
         await asyncio.to_thread(process_runner.free_port, request.port, log)
+        injected_env = _sync_env_vars_to_files([target_dir, svc_work_dir], request.env_vars or {}, log_cb=log)
         log(f"$ {' '.join(cmd)}")
         py_paths = [str(target_dir.resolve()), str(svc_work_dir.resolve())]
         existing_py_path = os.environ.get("PYTHONPATH", "")
         if existing_py_path:
             py_paths.append(existing_py_path)
+        svc_extra_env = dict(injected_env)
+        svc_extra_env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(py_paths))
         proc = process_runner.start(
             run_id,
             cmd,
             svc_work_dir,
             log_cb=log,
-            extra_env={"PYTHONPATH": os.pathsep.join(dict.fromkeys(py_paths))}
+            extra_env=svc_extra_env
         )
 
         # Uygulama gerçekten ayağa kalktı mı? Hedef porta HTTP isteği atarak test ediyoruz
@@ -458,7 +528,8 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
                     "port": request.port,
                     "entrypoint": stack_info.entrypoint,
                     "is_standard": stack_info.is_standard,
-                    "services": [s.model_dump() for s in enabled_services] if enabled_services else getattr(stack_info, "services", [])
+                    "services": [s.model_dump() for s in enabled_services] if enabled_services else getattr(stack_info, "services", []),
+                    "env_vars": injected_env
                 },
                 repo_url=request.repo_url
             )

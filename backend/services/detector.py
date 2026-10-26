@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import json
+import re
 from pathlib import Path
 from typing import Optional, List
 
@@ -13,6 +14,7 @@ class StackInfo:
     entrypoint: Optional[str] = None
     detected_files: List[str] = field(default_factory=list)
     services: List[dict] = field(default_factory=list)
+    env_vars: List[dict] = field(default_factory=list)
 
 class StackDetector:
     def _find_entrypoint(self, repo_dir: Path, candidates: List[str]) -> Optional[str]:
@@ -147,8 +149,170 @@ class StackDetector:
 
         return None
 
+    def scan_env_variables(self, repo_dir: Path) -> List[dict]:
+        """
+        Scans .env.example, .env, Python config/source files, and Frontend JS/TS files
+        for API keys, credentials, and environment variables.
+        """
+        IGNORED_KEYS = {
+            "PATH", "PYTHONPATH", "HOME", "USERPROFILE", "PORT", "HOST",
+            "NODE_ENV", "VITE_DEV_SERVER_URL", "FLASK_HOST", "FLASK_PORT",
+            "FLASK_DEBUG", "DEBUG", "CI", "PYTEST_CURRENT_TEST", "VIRTUAL_ENV"
+        }
+        PLACEHOLDER_VALUES = {
+            "", "none", "null", "your_api_key", "your_api_key_here", "your_key_here",
+            "your-key-here", "changeme", "replace_me", "xxx", "todo"
+        }
+
+        def _is_placeholder(val: str) -> bool:
+            v = (val or "").strip().strip('"').strip("'").lower()
+            if v in PLACEHOLDER_VALUES:
+                return True
+            if v.startswith("your_") or v.startswith("<") or v.endswith("_here"):
+                return True
+            return False
+
+        def _is_secret_key(k: str) -> bool:
+            ku = k.upper()
+            return any(tok in ku for tok in ("KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIAL", "AUTH"))
+
+        # 1. Read existing .env values across root and common subdirs
+        existing_env: dict[str, str] = {}
+        env_line_re = re.compile(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]{1,})\s*=\s*(.*)$")
+
+        for sub in [".", "backend", "frontend", "client", "server", "api"]:
+            env_file = repo_dir / sub / ".env" if sub != "." else repo_dir / ".env"
+            if env_file.exists() and env_file.is_file():
+                try:
+                    for line in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+                        clean = line.strip()
+                        if not clean or clean.startswith("#"):
+                            continue
+                        m = env_line_re.match(clean)
+                        if m:
+                            k, v = m.group(1), m.group(2).split("#")[0].strip().strip('"').strip("'")
+                            if k not in IGNORED_KEYS and not _is_placeholder(v):
+                                existing_env[k] = v
+                except Exception:
+                    pass
+
+        discovered: dict[str, dict] = {}
+
+        def _register_var(key: str, default_val: str, source_label: str):
+            if not key or key in IGNORED_KEYS or len(key) < 3:
+                return
+            clean_def = (default_val or "").strip().strip('"').strip("'")
+            if _is_placeholder(clean_def):
+                clean_def = ""
+            current_val = existing_env.get(key, "")
+            is_empty = not bool(current_val or clean_def)
+
+            if key not in discovered:
+                discovered[key] = {
+                    "key": key,
+                    "value": current_val,
+                    "default_value": clean_def,
+                    "is_secret": _is_secret_key(key),
+                    "is_empty": is_empty,
+                    "source": source_label
+                }
+            else:
+                if clean_def and not discovered[key]["default_value"]:
+                    discovered[key]["default_value"] = clean_def
+                    discovered[key]["is_empty"] = not bool(discovered[key]["value"] or clean_def)
+
+        # 2. Scan .env.example / .env.sample / .env.template / .env
+        for sub in [".", "backend", "frontend", "client", "server", "api"]:
+            base = repo_dir / sub if sub != "." else repo_dir
+            for fname in [".env.example", ".env.sample", ".env.template", ".env"]:
+                fpath = base / fname
+                if fpath.exists() and fpath.is_file():
+                    rel_label = f"{sub}/{fname}" if sub != "." else fname
+                    try:
+                        for line in fpath.read_text(encoding="utf-8", errors="ignore").splitlines():
+                            clean = line.strip()
+                            if not clean or clean.startswith("#"):
+                                continue
+                            m = env_line_re.match(clean)
+                            if m:
+                                k, v = m.group(1), m.group(2).split("#")[0].strip()
+                                _register_var(k, v, rel_label)
+                    except Exception:
+                        pass
+
+        # 3. Scan Python files for os.getenv / os.environ.get and Pydantic BaseSettings fields
+        py_getenv_re = re.compile(
+            r"""os\.(?:getenv|environ\.get)\(\s*['"]([A-Z][A-Z0-9_]{2,})['"](?:\s*,\s*['"]([^'"]*)['"])?\s*\)"""
+        )
+        py_environ_bracket_re = re.compile(r"""os\.environ\[\s*['"]([A-Z][A-Z0-9_]{2,})['"]\s*\]""")
+        pydantic_field_re = re.compile(
+            r"""^\s*([A-Z][A-Z0-9_]{2,})\s*:\s*(?:Optional\[)?str(?:\])?\s*=\s*['"]([^'"]*)['"]""",
+            re.MULTILINE
+        )
+        INTERESTING_KEYWORDS = (
+            "KEY", "TOKEN", "SECRET", "PASSWORD", "URL", "URI", "API",
+            "SUPABASE", "FIREBASE", "OPENAI", "GEMINI", "GROQ", "ANTHROPIC",
+            "STEAM", "DATABASE", "MODEL", "PROVIDER", "OLLAMA", "HUGGINGFACE"
+        )
+
+        SKIP_DIRS = {".venv", "venv", "env", "node_modules", "__pycache__", ".git", "dist", "build", "tests", "docs"}
+        py_count = 0
+        try:
+            for py_file in repo_dir.rglob("*.py"):
+                if {p.lower() for p in py_file.parts} & SKIP_DIRS:
+                    continue
+                py_count += 1
+                if py_count > 65:
+                    break
+                rel_path = py_file.relative_to(repo_dir).as_posix()
+                content = py_file.read_text(encoding="utf-8", errors="ignore")
+
+                for m in py_getenv_re.finditer(content):
+                    k, def_v = m.group(1), m.group(2) or ""
+                    if any(w in k for w in INTERESTING_KEYWORDS):
+                        _register_var(k, def_v, rel_path)
+
+                for m in py_environ_bracket_re.finditer(content):
+                    k = m.group(1)
+                    if any(w in k for w in INTERESTING_KEYWORDS):
+                        _register_var(k, "", rel_path)
+
+                if "BaseSettings" in content or "config" in py_file.name.lower():
+                    for m in pydantic_field_re.finditer(content):
+                        k, def_v = m.group(1), m.group(2) or ""
+                        if any(w in k for w in INTERESTING_KEYWORDS):
+                            _register_var(k, def_v, rel_path)
+        except Exception:
+            pass
+
+        # 4. Scan Frontend JS/TS files for import.meta.env.VITE_* and process.env.REACT_APP_* / NEXT_PUBLIC_*
+        fe_env_re = re.compile(
+            r"""(?:import\.meta\.env\.|process\.env\.)((?:VITE_|REACT_APP_|NEXT_PUBLIC_)[A-Z0-9_]+)"""
+        )
+        fe_count = 0
+        try:
+            for ext in ("*.js", "*.jsx", "*.ts", "*.tsx"):
+                for fe_file in repo_dir.rglob(ext):
+                    if {p.lower() for p in fe_file.parts} & SKIP_DIRS:
+                        continue
+                    fe_count += 1
+                    if fe_count > 80:
+                        break
+                    rel_path = fe_file.relative_to(repo_dir).as_posix()
+                    content = fe_file.read_text(encoding="utf-8", errors="ignore")
+                    for m in fe_env_re.finditer(content):
+                        _register_var(m.group(1), "", rel_path)
+        except Exception:
+            pass
+
+        results = list(discovered.values())
+        # Sort: empty secrets first, then other empty vars, then secrets, then alphabetical
+        results.sort(key=lambda item: (not item["is_empty"], not item["is_secret"], item["key"]))
+        return results
+
     def analyze(self, repo_dir: Path, port: int = 8000) -> StackInfo:
         has_dockerfile = (repo_dir / "Dockerfile").exists() or (repo_dir / "docker-compose.yml").exists()
+        detected_env_vars = self.scan_env_variables(repo_dir)
 
         common_markers = [
             "requirements.txt", "pyproject.toml", "Pipfile", "setup.py",
@@ -206,6 +370,7 @@ class StackDetector:
                 })
 
             py_stack.services = services
+            py_stack.env_vars = detected_env_vars
             return py_stack
 
         # 2. Check Node.js (root or frontend/client subfolders)
@@ -231,7 +396,8 @@ class StackDetector:
                 run_command=f"PORT={port} npm start",
                 has_dockerfile=has_dockerfile,
                 detected_files=found_markers,
-                services=[svc]
+                services=[svc],
+                env_vars=detected_env_vars
             )
 
         fe_sub = self._detect_frontend_subservice(repo_dir, port)
@@ -243,7 +409,8 @@ class StackDetector:
                 run_command=fe_sub["run_command"],
                 has_dockerfile=has_dockerfile,
                 detected_files=found_markers,
-                services=[{**fe_sub, "enabled": True}]
+                services=[{**fe_sub, "enabled": True}],
+                env_vars=detected_env_vars
             )
 
         # 3. Check Static HTML / Web projects
@@ -269,7 +436,8 @@ class StackDetector:
                         "port": port,
                         "enabled": True
                     }
-                ]
+                ],
+                env_vars=detected_env_vars
             )
 
         # 4. Unknown / Deep AI Mode
@@ -280,7 +448,8 @@ class StackDetector:
             run_command=None,
             has_dockerfile=has_dockerfile,
             detected_files=found_markers,
-            services=[]
+            services=[],
+            env_vars=detected_env_vars
         )
 
     def _analyze_python(self, repo_dir: Path, port: int, has_dockerfile: bool, found_markers: List[str]) -> StackInfo:

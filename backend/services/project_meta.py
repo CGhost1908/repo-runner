@@ -141,7 +141,8 @@ class ProjectMetaManager:
                 "port": recipe.get("port", 8000),
                 "entrypoint": recipe.get("entrypoint"),
                 "is_standard": recipe.get("is_standard", True),
-                "services": recipe.get("services") or []
+                "services": recipe.get("services") or [],
+                "env_vars": recipe.get("env_vars") or {}
             }
             if "framework" in recipe:
                 meta["framework"] = recipe["framework"]
