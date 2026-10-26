@@ -49,10 +49,12 @@ class EnvManager:
             self._active_procs[run_id] = proc
 
         start_t = time.time()
+        last_reported = 0
         while proc.poll() is None:
             time.sleep(0.5)
             elapsed = int(time.time() - start_t)
-            if elapsed > 0 and elapsed % 3 == 0 and (time.time() - start_t - elapsed) < 0.55:
+            if elapsed > 0 and elapsed % 3 == 0 and elapsed != last_reported:
+                last_reported = elapsed
                 if log_cb:
                     log_cb(f"[WAIT] Provisioning isolated Python environment (.venv)... ({elapsed}s)")
 
@@ -163,6 +165,7 @@ class EnvManager:
 
         returncode = self._run_pip_cmd(venv_cmd, repo_dir, log_cb, run_id=run_id)
         if returncode == 0:
+            self._install_undeclared_imports(repo_dir, python_bin, log_cb, run_id)
             return True
 
         # Check if stopped by user
@@ -210,3 +213,75 @@ class EnvManager:
                 return installed_any
 
         return False
+
+    def _install_undeclared_imports(
+        self,
+        repo_dir: Path,
+        python_bin: Path,
+        log_cb: Optional[Callable[[str], None]] = None,
+        run_id: str = ""
+    ) -> None:
+        """
+        Scans project .py files for common third-party imports that authors frequently forget
+        to list in requirements.txt (e.g., 'jwt' -> PyJWT + cryptography, 'dotenv' -> python-dotenv)
+        and installs any missing ones into .venv automatically.
+        """
+        COMMON_IMPORT_TO_PIP = {
+            "jwt": ["PyJWT", "cryptography"],
+            "dotenv": ["python-dotenv"],
+            "yaml": ["PyYAML"],
+            "bs4": ["beautifulsoup4"],
+            "PIL": ["Pillow"],
+            "cv2": ["opencv-python-headless"],
+            "supabase": ["supabase"],
+            "litellm": ["litellm"]
+        }
+
+        detected_roots: set[str] = set()
+        import ast
+
+        try:
+            for py_file in repo_dir.rglob("*.py"):
+                parts_lower = {p.lower() for p in py_file.parts}
+                if parts_lower & {".venv", "venv", "env", "node_modules", "__pycache__", ".git", "tests"}:
+                    continue
+                content = py_file.read_text(encoding="utf-8", errors="ignore")
+                try:
+                    tree = ast.parse(content)
+                except SyntaxError:
+                    continue
+                # Only inspect top-level module imports (ignores optional imports inside try/except or functions)
+                for node in tree.body:
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            root_mod = alias.name.split(".")[0]
+                            if root_mod in COMMON_IMPORT_TO_PIP:
+                                detected_roots.add(root_mod)
+                    elif isinstance(node, ast.ImportFrom) and node.module:
+                        root_mod = node.module.split(".")[0]
+                        if root_mod in COMMON_IMPORT_TO_PIP:
+                            detected_roots.add(root_mod)
+        except Exception:
+            return
+
+        if not detected_roots:
+            return
+
+        missing_pip_pkgs: list[str] = []
+        for mod_name in sorted(detected_roots):
+            chk = subprocess.run(
+                [str(python_bin), "-c", f"import {mod_name}"],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if chk.returncode != 0:
+                for pkg in COMMON_IMPORT_TO_PIP[mod_name]:
+                    if pkg not in missing_pip_pkgs:
+                        missing_pip_pkgs.append(pkg)
+
+        if missing_pip_pkgs:
+            if log_cb:
+                log_cb(f"[AUTO-HEAL] Detected undeclared imports in source code. Installing: {', '.join(missing_pip_pkgs)}...")
+            heal_cmd = [str(python_bin), "-m", "pip", "install", "--progress-bar", "off"] + missing_pip_pkgs
+            self._run_pip_cmd(heal_cmd, repo_dir, log_cb, run_id=run_id)

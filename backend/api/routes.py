@@ -113,12 +113,12 @@ async def detect_project_stack(req: DetectRequest):
         fw = recipe.get("framework", "generic_python")
         saved_services = recipe.get("services") or []
         if not saved_services:
-            role = "frontend" if fw in ("static_html", "vite", "react", "nextjs", "vue", "astro") else "backend"
-            saved_services = [
+            fresh_info = detector.analyze(target_dir, port=recipe.get("port", req.port))
+            saved_services = getattr(fresh_info, "services", []) or [
                 {
-                    "id": role,
-                    "role": role,
-                    "name": f"{role.capitalize()} Service ({fw.upper()})",
+                    "id": "backend",
+                    "role": "backend",
+                    "name": f"Backend Service ({fw.upper()})",
                     "framework": fw,
                     "working_dir": ".",
                     "install_command": recipe.get("install_command"),
@@ -275,6 +275,7 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
 
             active_runs[run_id]["status"] = StatusEnum.RUNNING
             spawned_procs = []
+            import os
 
             for idx, svc in enumerate(enabled_services):
                 svc_dir = (target_dir / (svc.working_dir or ".")).resolve()
@@ -299,26 +300,36 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
 
                 proc_key = run_id if idx == 0 else f"{run_id}:{svc.id}"
                 prefix = f"[{svc.role.upper()} :{svc.port}] "
+                py_paths = [str(target_dir.resolve()), str(svc_dir.resolve())]
+                existing_py_path = os.environ.get("PYTHONPATH", "")
+                if existing_py_path:
+                    py_paths.append(existing_py_path)
+
                 proc = process_runner.start(
                     proc_key,
                     cmd,
                     svc_dir,
-                    log_cb=lambda m, pfx=prefix: log(f"{pfx}{m}")
+                    log_cb=lambda m, pfx=prefix: log(f"{pfx}{m}"),
+                    extra_env={"PYTHONPATH": os.pathsep.join(dict.fromkeys(py_paths))}
                 )
                 spawned_procs.append((svc, proc, proc_key))
 
             log("--> Performing multi-service port health checks...")
             any_healthy = False
+            all_healthy = True
             for svc, proc, proc_key in spawned_procs:
                 h = await process_runner.check_health(svc.port, timeout_seconds=25.0, run_id=proc_key)
                 if h:
                     any_healthy = True
                     log(f"[SUCCESS] {svc.name} ({svc.role.upper()}) is live at http://localhost:{svc.port}")
+                else:
+                    all_healthy = False
+                    log(f"[ERROR] {svc.name} ({svc.role.upper()}) failed to respond on port :{svc.port}.")
 
             active_runs[run_id]["is_healthy"] = any_healthy
-            if any_healthy:
+            if all_healthy:
                 primary_port = enabled_services[0].port
-                log(f"[SUCCESS] Application is live at http://localhost:{primary_port}")
+                log(f"[SUCCESS] All {len(enabled_services)} service tiers are live!")
                 ProjectMetaManager.record_run_result(
                     repo_dir=target_dir,
                     status="SUCCESS",
@@ -334,6 +345,8 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
                     repo_url=request.repo_url
                 )
                 log("[INFO] Multi-service execution blueprint saved to 'My Repos' profile.")
+            elif not any_healthy:
+                active_runs[run_id]["status"] = StatusEnum.FAILED
             return
 
         # Single-service adjustments if 1 service was passed in request.services
@@ -361,15 +374,15 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
             log("--> Step 3: Preparing virtual environment and installing dependencies...")
             active_runs[run_id]["status"] = StatusEnum.INSTALLING
             
-            # Sanal ortamı (.venv) oluştur
-            python_bin = await asyncio.to_thread(env_manager.create_venv, target_dir, log, run_id)
-            if active_runs.get(run_id, {}).get("status") == StatusEnum.STOPPED:
-                return
+            first_tok = stack_info.install_command.strip().split()[0].lower()
+            if first_tok in ("pip", "python"):
+                python_bin = await asyncio.to_thread(env_manager.create_venv, svc_work_dir, log, run_id)
+                if active_runs.get(run_id, {}).get("status") == StatusEnum.STOPPED:
+                    return
 
             log(f"$ {stack_info.install_command}")
             
-            # pip install komutunu çalıştır (pip bitene kadar logları anlık ekrana yazar)
-            success = await asyncio.to_thread(env_manager.install_dependencies, target_dir, stack_info.install_command, log, run_id)
+            success = await asyncio.to_thread(env_manager.install_dependencies, svc_work_dir, stack_info.install_command, log, run_id)
             if active_runs.get(run_id, {}).get("status") == StatusEnum.STOPPED:
                 return
             if not success:
@@ -403,7 +416,7 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
             return
 
         cmd = stack_info.run_command.split()
-        import sys
+        import os, sys
         py_exec = str(python_bin) if python_bin.exists() else sys.executable
 
         # Auto-inject --app for flask if entrypoint is in a subfolder (e.g. src/app.py) and --app wasn't specified
@@ -417,8 +430,17 @@ async def _execute_pipeline(run_id: str, request: RunRequest):
 
         await asyncio.to_thread(process_runner.free_port, request.port, log)
         log(f"$ {' '.join(cmd)}")
-        # Süreci arka planda başlat (ProcessRunner çıktıları sürekli log fonksiyonuna aktarır)
-        proc = process_runner.start(run_id, cmd, target_dir, log_cb=log)
+        py_paths = [str(target_dir.resolve()), str(svc_work_dir.resolve())]
+        existing_py_path = os.environ.get("PYTHONPATH", "")
+        if existing_py_path:
+            py_paths.append(existing_py_path)
+        proc = process_runner.start(
+            run_id,
+            cmd,
+            svc_work_dir,
+            log_cb=log,
+            extra_env={"PYTHONPATH": os.pathsep.join(dict.fromkeys(py_paths))}
+        )
 
         # Uygulama gerçekten ayağa kalktı mı? Hedef porta HTTP isteği atarak test ediyoruz
         log("--> Performing port health check...")
